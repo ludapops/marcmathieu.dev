@@ -6,7 +6,7 @@ import styles from "./page.module.css";
 
 export default function Home() {
   return (
-    <main id="main-content">
+    <main id="main-content" tabIndex={-1}>
       <section className={styles.hero} aria-labelledby="hero-title" id="top">
         <div className={styles.heroMeta} data-motion-hero>
           <p>Miami · New York · Remote</p>

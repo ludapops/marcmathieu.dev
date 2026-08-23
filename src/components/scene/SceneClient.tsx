@@ -21,7 +21,7 @@ export function SceneClient() {
   }, []);
 
   return (
-    <div className={styles.shell} aria-hidden="true">
+    <div className={styles.shell} data-scene-shell aria-hidden="true">
       <div className={styles.fallback}>
         <i />
         <i />

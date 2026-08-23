@@ -33,6 +33,25 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html[data-intro-state="pending"],
+html[data-intro-state="locked"] {
+  background: #0c0d0b;
+}
+
+html[data-intro-state="pending"] [data-scene-shell],
+html[data-intro-state="locked"] [data-scene-shell] {
+  z-index: 101;
+}
+
+html[data-intro-state="seen"] [data-intro-splash],
+html[data-intro-state="seen"] [data-intro-backdrop] {
+  display: none;
+}
+
+#main-content:focus {
+  outline: none;
+}
+
 section,
 article {
   scroll-margin-top: 3.4rem;

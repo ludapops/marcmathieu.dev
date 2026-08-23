@@ -5,6 +5,11 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import * as THREE from "three";
+import {
+  type IntroProgressDetail,
+  type IntroRevealDetail,
+  introEvents,
+} from "@/components/experience/intro-events";
 import styles from "./Scene.module.css";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -191,6 +196,9 @@ export function ProceduralScene() {
       let motionPaused =
         window.localStorage.getItem("portfolio-motion-paused") === "true";
       let idleActive = false;
+      let introActive = document.documentElement.dataset.introState !== "seen";
+      let introRevealing = false;
+      let introProgress = 0;
       let idleFrame = 0;
       let renderFrame = 0;
       let scrollProgress = 0;
@@ -209,12 +217,48 @@ export function ProceduralScene() {
       };
 
       const runIdle = (time: number) => {
-        if (!idleActive || motionPaused || document.hidden) {
+        if ((!idleActive && !introActive) || motionPaused || document.hidden) {
           stopIdle();
           return;
         }
 
         const seconds = time / 1000;
+        if (introActive) {
+          if (!introRevealing) {
+            const charge = gsap.parseEase("power3.inOut")(introProgress);
+            sculpture.rotation.set(
+              Math.sin(seconds * 0.42) * 0.08 * (1 - charge),
+              seconds * (0.12 + charge * 0.55),
+              Math.cos(seconds * 0.36) * 0.05 * (1 - charge),
+            );
+            rings.forEach((ring, index) => {
+              const base = ringRotations[index];
+              ring.rotation.x = THREE.MathUtils.lerp(
+                base.x,
+                Math.PI / 2,
+                charge,
+              );
+              ring.rotation.y =
+                THREE.MathUtils.lerp(base.y, 0, charge) +
+                seconds * (0.08 + index * 0.025) * (1 + charge * 3);
+              ring.rotation.z = THREE.MathUtils.lerp(base.z, 0, charge);
+            });
+            const particleScale = THREE.MathUtils.lerp(1, 0.52, charge);
+            particles.scale.setScalar(particleScale);
+            const pulse =
+              1 +
+              Math.sin(seconds * (2.2 + charge * 7)) * (0.08 + charge * 0.24);
+            innerCore.scale.setScalar(pulse + charge * 0.34);
+            core.scale.setScalar(1 + charge * 0.14);
+            ribbon.rotation.y = -seconds * (0.1 + charge * 0.65);
+            nodes.rotation.y = seconds * (0.16 + charge * 0.7);
+            camera.position.z = THREE.MathUtils.lerp(6.8, 5.25, charge);
+          }
+          renderer.render(scene, camera);
+          idleFrame = requestAnimationFrame(runIdle);
+          return;
+        }
+
         sculpture.rotation.x =
           Math.sin(seconds * 0.28) * 0.13 + scrollProgress * 0.38;
         sculpture.rotation.y = seconds * 0.09 + scrollProgress * Math.PI * 1.8;
@@ -247,7 +291,13 @@ export function ProceduralScene() {
       };
 
       const startIdle = () => {
-        if (idleFrame || !idleActive || motionPaused || document.hidden) return;
+        if (
+          idleFrame ||
+          (!idleActive && !introActive) ||
+          motionPaused ||
+          document.hidden
+        )
+          return;
         idleFrame = requestAnimationFrame(runIdle);
       };
 
@@ -262,7 +312,7 @@ export function ProceduralScene() {
       };
 
       const animateTo = (name: keyof typeof sceneStates) => {
-        if (motionPaused) return;
+        if (motionPaused || introActive) return;
         const state = sceneStates[name];
         const color = new THREE.Color(state.color);
         const timeline = gsap.timeline({
@@ -410,13 +460,122 @@ export function ProceduralScene() {
         canvas.hidden = true;
       };
 
+      const introCharge = (event: Event) => {
+        introProgress = Math.max(
+          0,
+          Math.min(
+            1,
+            (event as CustomEvent<IntroProgressDetail>).detail.progress,
+          ),
+        );
+        if (introActive) startIdle();
+      };
+
+      const introReveal = (event: Event) => {
+        if (!introActive) return;
+        const { duration, reduced, skipped } = (
+          event as CustomEvent<IntroRevealDetail>
+        ).detail;
+        introRevealing = true;
+        stopIdle();
+
+        const timeline = gsap.timeline({
+          onComplete: () => {
+            tweens.delete(timeline);
+            introActive = false;
+            introRevealing = false;
+            introProgress = 0;
+            camera.position.set(0, 0, 6.8);
+            sceneRoot.position.set(0, 0, 0);
+            sceneRoot.rotation.set(0, 0, 0);
+            pointerGroup.rotation.set(0, 0, 0);
+            sculpture.position.set(0, 0, 0);
+            sculpture.rotation.set(0, 0, 0);
+            sculpture.scale.setScalar(1);
+            core.scale.setScalar(1);
+            innerCore.scale.setScalar(1);
+            particles.scale.setScalar(1);
+            rings.forEach((ring, index) =>
+              ring.rotation.copy(ringRotations[index]),
+            );
+            render();
+            ScrollTrigger.refresh();
+            startIdle();
+          },
+          onUpdate: render,
+        });
+
+        const finalScale = reduced || skipped ? 1.25 : 5.5;
+        timeline.to(
+          sculpture.scale,
+          {
+            x: finalScale,
+            y: finalScale,
+            z: finalScale,
+            duration,
+            ease: reduced || skipped ? "power2.out" : "power4.in",
+          },
+          0,
+        );
+        timeline.to(
+          camera.position,
+          {
+            z: reduced || skipped ? 6.2 : 2.2,
+            duration,
+            ease: reduced || skipped ? "power2.out" : "power4.in",
+          },
+          0,
+        );
+        timeline.to(
+          innerCore.scale,
+          {
+            x: 2.6,
+            y: 2.6,
+            z: 2.6,
+            duration: Math.min(duration * 0.54, 0.7),
+            ease: "power3.out",
+            yoyo: true,
+            repeat: 1,
+          },
+          0,
+        );
+        timeline.to(
+          particles.scale,
+          {
+            x: 0.12,
+            y: 0.12,
+            z: 0.12,
+            duration: duration * 0.65,
+            ease: "power3.in",
+          },
+          0,
+        );
+        rings.forEach((ring, index) => {
+          timeline.to(
+            ring.rotation,
+            {
+              x: Math.PI / 2,
+              y: Math.PI * (2.4 + index * 0.45),
+              z: 0,
+              duration: duration * 0.88,
+              ease: "power3.in",
+            },
+            0,
+          );
+        });
+        tweens.add(timeline);
+      };
+
       resize();
       render();
       window.addEventListener("resize", resize);
       window.addEventListener("pointermove", pointer, { passive: true });
       window.addEventListener("portfolio:motion", motion);
+      window.addEventListener(introEvents.progress, introCharge);
+      window.addEventListener(introEvents.reveal, introReveal);
       document.addEventListener("visibilitychange", visibility);
       canvas.addEventListener("webglcontextlost", contextLost);
+      if (introActive) startIdle();
 
       return () => {
         cancelAnimationFrame(idleFrame);
@@ -427,6 +586,8 @@ export function ProceduralScene() {
         window.removeEventListener("resize", resize);
         window.removeEventListener("pointermove", pointer);
         window.removeEventListener("portfolio:motion", motion);
+        window.removeEventListener(introEvents.progress, introCharge);
+        window.removeEventListener(introEvents.reveal, introReveal);
         document.removeEventListener("visibilitychange", visibility);
         canvas.removeEventListener("webglcontextlost", contextLost);
         coreGeometry.dispose();
