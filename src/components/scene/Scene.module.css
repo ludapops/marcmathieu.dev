@@ -1,0 +1,78 @@
+.shell {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.webgl,
+.webgl canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.fallback {
+  width: min(46vw, 40rem);
+  aspect-ratio: 1.35;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(-7deg);
+  opacity: 0.28;
+}
+
+.fallback::before,
+.fallback::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid #f2efe7;
+  transform: perspective(700px) rotateX(58deg) rotateZ(16deg);
+}
+
+.fallback::after {
+  inset: 18%;
+  background: color-mix(in srgb, var(--signal) 40%, transparent);
+  transform: perspective(700px) rotateX(58deg) rotateZ(-22deg);
+}
+
+.fallback i {
+  width: 8%;
+  aspect-ratio: 1;
+  position: absolute;
+  z-index: 1;
+  border: 1px solid #f2efe7;
+  background: #171916;
+}
+
+.fallback i:nth-child(1) {
+  left: 8%;
+  top: 12%;
+}
+.fallback i:nth-child(2) {
+  left: 62%;
+  top: 2%;
+  background: #b7ef36;
+}
+.fallback i:nth-child(3) {
+  left: 78%;
+  top: 54%;
+  background: #ff5e33;
+}
+.fallback i:nth-child(4) {
+  left: 24%;
+  top: 72%;
+  background: #c7a5ff;
+}
+.fallback i:nth-child(5) {
+  left: 48%;
+  top: 42%;
+}
+
+@media (max-width: 700px) {
+  .fallback {
+    width: 85vw;
+  }
+}

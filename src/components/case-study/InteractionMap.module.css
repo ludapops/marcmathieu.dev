@@ -1,0 +1,78 @@
+.map {
+  padding: clamp(1rem, 2vw, 2rem);
+  color: var(--chapter-ink);
+  background: var(--chapter-paper);
+  border: 1px solid color-mix(in srgb, var(--chapter-ink) 24%, transparent);
+}
+
+.map figcaption {
+  margin-bottom: 3rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.map ol {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  list-style: none;
+}
+
+.map li {
+  min-height: 9rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+  padding: 1rem;
+  position: relative;
+  border-top: 1px solid currentColor;
+  border-right: 1px solid
+    color-mix(in srgb, var(--chapter-ink) 24%, transparent);
+}
+
+.map li::after {
+  width: 0.6rem;
+  height: 0.6rem;
+  content: "";
+  position: absolute;
+  right: -0.3rem;
+  top: -0.35rem;
+  z-index: 1;
+  border-radius: 50%;
+  background: var(--chapter-accent);
+}
+
+.map li:last-child {
+  border-right: 0;
+}
+
+.map li:last-child::after {
+  display: none;
+}
+
+.map span {
+  font-size: 0.68rem;
+}
+
+.map strong {
+  max-width: 10ch;
+  font-family: var(--font-display);
+  font-size: clamp(1.2rem, 2vw, 2rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+@media (max-width: 680px) {
+  .map ol {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .map li:nth-child(2) {
+    border-right: 0;
+  }
+
+  .map li:nth-child(2)::after {
+    display: none;
+  }
+}

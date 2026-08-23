@@ -1,0 +1,10 @@
+.next
+.lighthouseci
+lighthouse-results
+node_modules
+pnpm-lock.yaml
+playwright-report
+test-results
+public/Marc-Mathieu-Resume.pdf
+public/images
+tmp
