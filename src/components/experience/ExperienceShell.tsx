@@ -10,6 +10,7 @@ import {
   dispatchIntroComplete,
   INTRO_EVERY_LOAD,
   INTRO_STORAGE_KEY,
+  introEvents,
   shouldShowIntro,
 } from "./intro-events";
 import { SplashGate } from "./SplashGate";
@@ -19,6 +20,7 @@ type ExperienceShellProps = { children: ReactNode };
 
 export function ExperienceShell({ children }: ExperienceShellProps) {
   const contentRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef(false);
   const [active, setActive] = useState(true);
   const [motionReady, setMotionReady] = useState(false);
 
@@ -71,6 +73,86 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
     };
   }, [active]);
 
+  useLayoutEffect(() => {
+    if (active) return;
+
+    const findHashTarget = () => {
+      try {
+        return window.location.hash
+          ? document.getElementById(
+              decodeURIComponent(window.location.hash.slice(1)),
+            )
+          : null;
+      } catch {
+        // Preserve malformed hashes without allowing them to block entry.
+        return null;
+      }
+    };
+    const scrollToHashTarget = () => {
+      const target = findHashTarget();
+      if (!target) return null;
+      const previousScrollBehavior =
+        document.documentElement.style.scrollBehavior;
+      document.documentElement.style.scrollBehavior = "auto";
+      target.scrollIntoView({ block: "start", behavior: "auto" });
+      document.documentElement.style.scrollBehavior = previousScrollBehavior;
+      return target;
+    };
+    const restoreHashIfOutsideViewport = () => {
+      const target = findHashTarget();
+      if (!target) return;
+      const bounds = target.getBoundingClientRect();
+      if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) {
+        scrollToHashTarget();
+      }
+    };
+    const restoreAfterSceneReady = () => {
+      window.requestAnimationFrame(restoreHashIfOutsideViewport);
+    };
+    const requestedHashTarget = findHashTarget();
+    let outerFrame = 0;
+    let innerFrame = 0;
+    let resizeFrame = 0;
+    let settleTimer = 0;
+    let layoutObserver: ResizeObserver | null = null;
+
+    if (requestedHashTarget) {
+      layoutObserver = new ResizeObserver(() => {
+        window.cancelAnimationFrame(resizeFrame);
+        resizeFrame = window.requestAnimationFrame(
+          restoreHashIfOutsideViewport,
+        );
+      });
+      layoutObserver.observe(document.body);
+      window.addEventListener(introEvents.ready, restoreAfterSceneReady);
+      settleTimer = window.setTimeout(() => {
+        layoutObserver?.disconnect();
+        restoreHashIfOutsideViewport();
+        window.removeEventListener(introEvents.ready, restoreAfterSceneReady);
+      }, 3000);
+    }
+
+    outerFrame = window.requestAnimationFrame(() => {
+      innerFrame = window.requestAnimationFrame(() => {
+        const hashTarget = scrollToHashTarget();
+        if (restoreFocusRef.current) {
+          document.querySelector<HTMLElement>("#main-content")?.focus({
+            preventScroll: Boolean(hashTarget),
+          });
+        }
+      });
+    });
+
+    return () => {
+      layoutObserver?.disconnect();
+      window.cancelAnimationFrame(outerFrame);
+      window.cancelAnimationFrame(innerFrame);
+      window.cancelAnimationFrame(resizeFrame);
+      window.clearTimeout(settleTimer);
+      window.removeEventListener(introEvents.ready, restoreAfterSceneReady);
+    };
+  }, [active]);
+
   const complete = (restoreFocus: boolean) => {
     if (!INTRO_EVERY_LOAD) {
       try {
@@ -80,38 +162,10 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
       }
     }
     document.documentElement.dataset.introState = "seen";
+    restoreFocusRef.current = restoreFocus;
     setActive(false);
     setMotionReady(true);
     dispatchIntroComplete();
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        let hashTarget: HTMLElement | null = null;
-        try {
-          hashTarget = window.location.hash
-            ? document.getElementById(
-                decodeURIComponent(window.location.hash.slice(1)),
-              )
-            : null;
-        } catch {
-          // Preserve malformed hashes without allowing them to block entry.
-        }
-        if (hashTarget) {
-          const previousScrollBehavior =
-            document.documentElement.style.scrollBehavior;
-          document.documentElement.style.scrollBehavior = "auto";
-          hashTarget.scrollIntoView({ block: "start", behavior: "auto" });
-          document.documentElement.style.scrollBehavior =
-            previousScrollBehavior;
-        }
-
-        if (restoreFocus) {
-          document.querySelector<HTMLElement>("#main-content")?.focus({
-            preventScroll: Boolean(hashTarget),
-          });
-        }
-      });
-    });
   };
 
   return (

@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s | Marc Mathieu",
   },
   description:
-    "Senior frontend engineer building complex product interfaces with care.",
+    "Senior frontend engineer leading product work from early decisions through production, with a focus on AI-assisted development and product interfaces.",
   alternates: {
     canonical: "/",
   },
@@ -34,13 +34,13 @@ export const metadata: Metadata = {
     siteName: "Marc Mathieu",
     title: "Marc Mathieu | Senior Frontend Engineer",
     description:
-      "Senior frontend engineer building complex product interfaces with care.",
+      "Senior frontend engineer leading product work from early decisions through production, with a focus on AI-assisted development and product interfaces.",
   },
   twitter: {
     card: "summary_large_image",
     title: "Marc Mathieu | Senior Frontend Engineer",
     description:
-      "Senior frontend engineer building complex product interfaces with care.",
+      "Senior frontend engineer leading product work from early decisions through production, with a focus on AI-assisted development and product interfaces.",
   },
 };
 

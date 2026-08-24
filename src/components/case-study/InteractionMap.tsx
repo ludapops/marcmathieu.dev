@@ -8,7 +8,7 @@ export function InteractionMap({
   steps: string[];
 }) {
   return (
-    <figure className={styles.map} data-motion="copy">
+    <figure className={styles.map}>
       <figcaption>{label} · public behavior map</figcaption>
       <ol>
         {steps.map((step, index) => (

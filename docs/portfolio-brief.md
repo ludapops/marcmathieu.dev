@@ -30,11 +30,10 @@ Each chapter states context and dates, role and team boundary, product problem, 
 ### AG1
 
 - Period: 2023–2025 through Code Particle
-- Role: led frontend decoupling and shared ownership of design and interface updates
-- Ownership: fully implemented the Shop AG1 flow and cart functionality
-- Product problem: a custom subscription shopping experience integrated with Shopify, including AG1-specific product, cadence, and cart behavior
-- Supporting work: independently deployable frontend experiences, product-change flows, Monta pickup points, six international markets, Statsig, RudderStack, and LaunchDarkly
-- Safe historical wording: the work began before Shopify's first-party Subscriptions app reached general release; Shopify subscription APIs already existed
+- Primary story: built the UI and APIs for AG1's subscription service, translating product and cadence choices into Shopify selling plans
+- Ownership: delivered the subscription UI and APIs, Shop AG1, the full cart experience, and the supporting Shopify integration
+- Product problem: Shopify supplied subscription primitives, but AG1 still needed a complete product that carried product and cadence choices through the cart and into selling plans
+- Supporting work: helped lead frontend decoupling and shared interface decisions, then shipped product-change flows, Monta pickup points, and localized experiences across six international markets
 - Public evidence: current AG1 Pro purchase options and cart journey, captured in 2026
 - Caveat: current pixels and implementation may have changed since Marc's work
 
@@ -50,7 +49,7 @@ Each chapter states context and dates, role and team boundary, product problem, 
 
 ### BeautyNexos
 
-- Period: November 2025 to present; recheck after the scheduled September 1, 2026 engagement end
+- Period: 2025–2026
 - Stack: Flutter, Strapi, TypeScript, and Stripe
 - Ownership: Trade Calendar, payments, product and gallery add-ons, homepage, and member-dashboard areas
 - Product problems: consistent cross-platform data, payment and subscription states, responsive Flutter delivery, event filters and dates, member entitlements, media validation, and publishing state

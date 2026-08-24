@@ -3,7 +3,7 @@ import styles from "./SceneTransition.module.css";
 const helperCopy = {
   ag1: "Scroll to roll",
   battlefield: "Scroll to drop",
-  beautynexos: "Scroll to finish",
+  beautynexos: "Scroll to shoot",
 } as const;
 
 export function SceneTransition({

@@ -22,8 +22,8 @@ export default function Home() {
             <span>carefully made.</span>
           </h1>
           <p className={styles.intro}>
-            I build product interfaces where design judgment and production
-            engineering have to agree.
+            I lead frontend work from early product decisions through
+            production, shaping both the experience and the system behind it.
           </p>
           <div className={styles.heroActions}>
             <a href="#work">View selected work</a>
@@ -35,11 +35,10 @@ export default function Home() {
       <section className={styles.work} id="work" aria-labelledby="work-title">
         <header className={styles.sectionHeader} data-motion="heading">
           <p>Selected work · 01 / 03</p>
-          <h2 id="work-title">Selected systems, built in the details.</h2>
+          <h2 id="work-title">Selected frontend work.</h2>
           <p className={styles.sectionIntro}>
-            I worked on subscription commerce, a game-creation interface, and a
-            cross-platform member product. Each one made complexity visible in a
-            different way.
+            Three case studies about the product decisions and frontend delivery
+            behind AG1, Battlefield 2042, and BeautyNexos.
           </p>
         </header>
         <ProjectIndex projects={projects} />
@@ -63,7 +62,9 @@ export default function Home() {
       >
         <header className={styles.sectionHeader} data-motion="heading">
           <p>Experience · 2014 / 2026</p>
-          <h2 id="experience-title">Twelve years in the interface layer.</h2>
+          <h2 id="experience-title">
+            Twelve years building frontend products.
+          </h2>
         </header>
         <div className={styles.timeline} data-motion="rows">
           {career.map((item) => (
@@ -91,20 +92,21 @@ export default function Home() {
       >
         <p className={styles.eyebrow}>About Marc</p>
         <h2 id="about-title" data-motion="heading">
-          I like the point where a complicated system becomes a clear interface.
+          Good frontend work should make sense to the people using it and the
+          people maintaining it.
         </h2>
         <div className={styles.aboutCopy} data-motion="copy">
           <p>
-            I am a Miami-based senior frontend engineer with more than a decade
-            of experience building consumer and enterprise products. I have led
-            frontend delivery across product, design, QA, backend, and client
-            teams without giving up the hands-on work.
+            I&apos;m a Miami-based senior frontend engineer with more than a
+            decade of experience building consumer and enterprise products. I
+            lead frontend work across disciplines while staying hands-on in the
+            code.
           </p>
           <p>
-            My strongest work connects architecture to what someone can actually
-            see and use: a subscription choice that behaves correctly, a creator
-            tool that makes a dense model understandable, or a feature that
-            gives web and mobile users the same answer.
+            In practice, that means getting the behavior right for users and
+            leaving the frontend clear enough for the next engineer to change.
+            I&apos;m especially interested in how AI is changing both the way we
+            build software and the interfaces we build around it.
           </p>
         </div>
       </section>
@@ -116,7 +118,7 @@ export default function Home() {
       >
         <p className={styles.eyebrow}>Open to senior frontend roles</p>
         <h2 id="contact-title" data-motion="heading">
-          Building something complicated?
+          Let&apos;s talk about what you&apos;re building.
         </h2>
         <a className={styles.email} href="mailto:avianmathieu@gmail.com">
           avianmathieu@gmail.com

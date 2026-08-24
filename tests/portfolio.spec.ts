@@ -153,6 +153,10 @@ test("auto-launches the machine at full wind and enters after the key impact", a
     "visibility",
     "hidden",
   );
+  await expect(page.locator("[data-experience-content]")).toHaveCSS(
+    "transform",
+    "none",
+  );
   await expect
     .poll(() =>
       page.evaluate(
@@ -252,15 +256,34 @@ test("presents the positioning and all three case studies", async ({
   page,
 }) => {
   await dismissIntro(page);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+    "content",
+    "Senior frontend engineer leading product work from early decisions through production, with a focus on AI-assisted development and product interfaces.",
+  );
   await expect(
     page.getByRole("heading", { name: /Complex products/i, level: 1 }),
   ).toBeVisible();
+  await expect(
+    page.getByText(
+      "I lead frontend work from early product decisions through production, shaping both the experience and the system behind it.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Selected frontend work.", level: 2 }),
+  ).toBeVisible();
 
-  for (const heading of [
-    /Separating a custom subscription experience/i,
-    /Turning a dense game configuration model/i,
-    /Bringing events, media, and payments/i,
-  ]) {
+  const beautyHeading = page.getByRole("heading", {
+    name: "BeautyNexos",
+    level: 2,
+  });
+  expect(
+    await beautyHeading.evaluate(
+      (heading) =>
+        heading.getBoundingClientRect().right <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+
+  for (const heading of [/AG1/i, /Battlefield/i, /BeautyNexos/i]) {
     await expect(
       page.getByRole("heading", { name: heading, level: 2 }),
     ).toBeAttached();
@@ -413,7 +436,7 @@ test("scrubs connected machine chapters and Pause Motion freezes them", async ({
   expect(pausedFrameA).toBe(pausedFrameB);
 });
 
-test("continues one marble through roll, drop, and finish chapters", async ({
+test("uses the falling marble to launch a second marble into the hoop", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "WebGL story check");
@@ -429,25 +452,55 @@ test("continues one marble through roll, drop, and finish chapters", async ({
   expect(rollEndX).toBeGreaterThan(rollStartX + 5);
 
   await setTransitionProgress(page, "Battlefield", 0.05);
-  await expect(canvas).toHaveAttribute("data-machine-action", "drop-center");
+  await expect(canvas).toHaveAttribute("data-machine-action", "drop-left");
   const dropStartX = Number(await canvas.getAttribute("data-machine-ball-x"));
   await setTransitionProgress(page, "Battlefield", 0.76);
   const dropEndX = Number(await canvas.getAttribute("data-machine-ball-x"));
   const dropEndY = Number(await canvas.getAttribute("data-machine-ball-y"));
   expect(dropStartX).toBeCloseTo(rollEndX, 0);
-  expect(Math.abs(dropEndX)).toBeLessThan(0.1);
+  expect(dropEndX).toBeLessThan(-1.8);
   expect(dropEndY).toBeLessThan(-2.5);
 
-  await setTransitionProgress(page, "BeautyNexos", 0.62);
-  await expect(canvas).toHaveAttribute("data-machine-action", "finish");
-  expect(Number(await canvas.getAttribute("data-machine-button"))).toBe(1);
-  expect(Number(await canvas.getAttribute("data-machine-flag"))).toBe(1);
+  await setTransitionProgress(page, "BeautyNexos", 0.05);
+  await expect(canvas).toHaveAttribute("data-machine-action", "basket-shot");
+  expect(Number(await canvas.getAttribute("data-machine-ball-x"))).toBeCloseTo(
+    dropEndX,
+    0,
+  );
+  await expect(canvas).toHaveAttribute(
+    "data-machine-shot-ball-visible",
+    "true",
+  );
+  const loadedShotX = Number(
+    await canvas.getAttribute("data-machine-shot-ball-x"),
+  );
+  expect(loadedShotX).toBeGreaterThan(dropEndX + 1);
+
+  await setTransitionProgress(page, "BeautyNexos", 0.42);
+  expect(Number(await canvas.getAttribute("data-machine-catapult"))).toBe(1);
+  expect(
+    Number(await canvas.getAttribute("data-machine-shot")),
+  ).toBeGreaterThan(0);
+  expect(Number(await canvas.getAttribute("data-machine-score"))).toBe(0);
+  expect(Number(await canvas.getAttribute("data-machine-ball-x"))).toBeLessThan(
+    -3,
+  );
+  expect(
+    Number(await canvas.getAttribute("data-machine-shot-ball-x")),
+  ).toBeGreaterThan(loadedShotX + 2);
+
+  await setTransitionProgress(page, "BeautyNexos", 0.58);
+  expect(Number(await canvas.getAttribute("data-machine-score"))).toBe(1);
   expect(Number(await canvas.getAttribute("data-machine-confetti"))).toBe(1);
 
-  await setTransitionProgress(page, "BeautyNexos", 0.25);
-  expect(Number(await canvas.getAttribute("data-machine-button"))).toBe(0);
-  expect(Number(await canvas.getAttribute("data-machine-flag"))).toBe(0);
+  await setTransitionProgress(page, "BeautyNexos", 0.15);
+  expect(Number(await canvas.getAttribute("data-machine-catapult"))).toBe(0);
+  expect(Number(await canvas.getAttribute("data-machine-shot"))).toBe(0);
+  expect(Number(await canvas.getAttribute("data-machine-score"))).toBe(0);
   expect(Number(await canvas.getAttribute("data-machine-confetti"))).toBe(0);
+  expect(
+    Number(await canvas.getAttribute("data-machine-shot-ball-x")),
+  ).toBeCloseTo(loadedShotX, 1);
 });
 
 test("clips the chapter machine to its dark transition", async ({
@@ -506,13 +559,123 @@ test("uses varied content motion without scroll blur", async ({ page }) => {
   await expect(page.locator('[data-motion="media"]')).not.toHaveCount(0);
 });
 
+test("keeps project covers concise and opens one case study at a time", async ({
+  page,
+}) => {
+  await dismissIntro(page);
+
+  const disclosures = page.locator("[data-case-study-disclosure]");
+  await expect(disclosures).toHaveCount(3);
+  await expect(page.locator("[data-case-study-disclosure][open]")).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("img", {
+      name: "AG1 homepage hero introducing AG1 Pro beside a green travel pack and shaker",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", {
+      name: "Battlefield 2042 homepage hero showing a squad moving through an urban battle",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", {
+      name: "BeautyNexos homepage with two editorial stories about beauty innovation",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText(
+      "Built the subscription UI and APIs connecting product and cadence choices to Shopify selling plans.",
+    ),
+  ).toBeHidden();
+
+  const ag1Links = page.getByRole("navigation", {
+    name: "AG1 project links",
+  });
+  const ag1ExternalLink = ag1Links.getByRole("link", {
+    name: "Visit the current AG1 Pro flow",
+  });
+  await expect(ag1Links).toBeVisible();
+  await expect(ag1ExternalLink).toBeVisible();
+  await expect(ag1ExternalLink).toHaveAttribute("target", "_blank");
+  await expect(ag1ExternalLink).toHaveAttribute("rel", "noreferrer");
+  await ag1ExternalLink.focus();
+  await expect(ag1ExternalLink).toBeFocused();
+
+  const beautyLinks = page.getByRole("navigation", {
+    name: "BeautyNexos project links",
+  });
+  await expect(beautyLinks.getByRole("link")).toHaveCount(1);
+  await expect(
+    beautyLinks.getByRole("link", { name: "Visit BeautyNexos" }),
+  ).toBeVisible();
+  await expect(
+    beautyLinks.getByRole("link", { name: /Trade Calendar/i }),
+  ).toHaveCount(0);
+
+  const ag1 = page.locator('[data-case-study-disclosure="ag1"]');
+  const battlefield = page.locator(
+    '[data-case-study-disclosure="battlefield"]',
+  );
+  await ag1.getByText("View full case study").click();
+  await expect(ag1).toHaveAttribute("open", "");
+  await expect(ag1.getByText("Close case study")).toBeVisible();
+  await expect(
+    ag1.getByText(
+      "Built the subscription UI and APIs connecting product and cadence choices to Shopify selling plans.",
+    ),
+  ).toBeVisible();
+  await expect(ag1.getByText("My role", { exact: true })).toBeVisible();
+  await expect(
+    ag1.getByRole("heading", { name: "The product in public.", level: 3 }),
+  ).toBeVisible();
+  await expect(ag1Links).toBeVisible();
+
+  const battlefieldToggle = battlefield.locator("summary");
+  await battlefieldToggle.focus();
+  await battlefieldToggle.press("Enter");
+  await expect(battlefield).toHaveAttribute("open", "");
+  await expect(ag1).not.toHaveAttribute("open", "");
+  await expect(page.locator("[data-case-study-disclosure][open]")).toHaveCount(
+    1,
+  );
+  expect(await page.locator("details [data-motion]").count()).toBe(0);
+
+  const results = await new AxeBuilder({ page }).exclude("canvas").analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test("keeps native case-study disclosures usable without JavaScript", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto("http://127.0.0.1:3000/");
+
+  const ag1 = page.locator('[data-case-study-disclosure="ag1"]');
+  await expect(ag1.locator("summary")).toBeVisible();
+  await ag1.locator("summary").click();
+  await expect(ag1).toHaveAttribute("open", "");
+  await expect(
+    ag1.getByText(
+      "Built the subscription UI and APIs connecting product and cadence choices to Shopify selling plans.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "AG1 project links" }),
+  ).toBeVisible();
+
+  await context.close();
+});
+
 test("@visual desktop narrative", async ({ page }, testInfo) => {
   test.setTimeout(60_000);
   test.skip(testInfo.project.name !== "chromium", "Desktop baseline only");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.reload();
   await dismissIntro(page);
-  for (const image of await page.locator("img").all()) {
+  for (const image of await page.locator("img:visible").all()) {
     await image.scrollIntoViewIfNeeded();
     await expect(image).toHaveJSProperty("complete", true);
   }
@@ -522,6 +685,40 @@ test("@visual desktop narrative", async ({ page }, testInfo) => {
   await expect(page).toHaveScreenshot("portfolio-desktop.png", {
     animations: "disabled",
     fullPage: true,
+    maxDiffPixelRatio: 0.001,
+    timeout: 15_000,
+  });
+});
+
+test("@visual expanded AG1 case study", async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  test.skip(testInfo.project.name !== "chromium", "Desktop baseline only");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  await dismissIntro(page);
+  const ag1 = page.locator("#ag1");
+  await ag1.locator("summary").click();
+  for (const image of await ag1.locator("img").all()) {
+    await image.scrollIntoViewIfNeeded();
+    await expect(image).toHaveJSProperty("complete", true);
+  }
+  await expect(ag1).toHaveScreenshot("case-study-ag1-expanded.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.001,
+    timeout: 15_000,
+  });
+});
+
+test("@visual mobile compact case study", async ({ page }, testInfo) => {
+  test.setTimeout(60_000);
+  test.skip(testInfo.project.name !== "mobile", "Mobile baseline only");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  await dismissIntro(page);
+  const ag1 = page.locator("#ag1");
+  await ag1.scrollIntoViewIfNeeded();
+  await expect(ag1).toHaveScreenshot("case-study-ag1-mobile.png", {
+    animations: "disabled",
     maxDiffPixelRatio: 0.001,
     timeout: 15_000,
   });
@@ -552,7 +749,7 @@ test("@visual mobile splash", async ({ page }, testInfo) => {
 for (const chapter of [
   { name: "AG1", progress: 0.5, snapshot: "machine-roll.png" },
   { name: "Battlefield", progress: 0.58, snapshot: "machine-drop.png" },
-  { name: "BeautyNexos", progress: 0.6, snapshot: "machine-finish.png" },
+  { name: "BeautyNexos", progress: 0.58, snapshot: "machine-finish.png" },
 ] as const) {
   test(`@visual ${chapter.name} machine chapter`, async ({
     page,
@@ -569,10 +766,10 @@ for (const chapter of [
   });
 }
 
-test("@visual mobile finish chapter", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile", "Mobile finish baseline");
+test("@visual mobile basket chapter", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Mobile basket baseline");
   await dismissIntro(page);
-  await setTransitionProgress(page, "BeautyNexos", 0.6);
+  await setTransitionProgress(page, "BeautyNexos", 0.58);
   await page.getByRole("button", { name: "Pause motion" }).click();
   await page.waitForTimeout(150);
   await expect(page).toHaveScreenshot("machine-finish-mobile.png", {

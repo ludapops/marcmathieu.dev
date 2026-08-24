@@ -188,11 +188,17 @@ export function MotionDirector() {
       }
     };
 
+    const refreshLayout = () => {
+      ScrollTrigger.refresh();
+    };
+
     window.addEventListener("portfolio:motion", motion);
+    window.addEventListener("portfolio:layout", refreshLayout);
     ScrollTrigger.refresh();
 
     return () => {
       window.removeEventListener("portfolio:motion", motion);
+      window.removeEventListener("portfolio:layout", refreshLayout);
       triggers.forEach((trigger) => trigger.kill());
       animations.forEach((animation) => animation.kill());
     };

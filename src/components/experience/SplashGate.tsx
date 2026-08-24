@@ -164,7 +164,13 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
         )
         .to(
           content,
-          { opacity: 1, y: 0, duration: 0.56, ease: "power3.out" },
+          {
+            clearProps: "opacity,transform",
+            opacity: 1,
+            y: 0,
+            duration: 0.56,
+            ease: "power3.out",
+          },
           0.72,
         );
     },
@@ -341,7 +347,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
 
       <div className={styles.identity} data-machine-copy>
         <p>Marc Mathieu</p>
-        <span>Designing the interface layer</span>
+        <span>Product decisions to production code</span>
       </div>
 
       <div className={styles.machineLabel} data-machine-copy aria-hidden="true">

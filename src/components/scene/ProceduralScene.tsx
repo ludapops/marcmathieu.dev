@@ -16,6 +16,7 @@ import {
   introEvents,
 } from "@/components/experience/intro-events";
 import {
+  basketLayout,
   chapterActions,
   chapterPaths,
   confettiPieces,
@@ -115,8 +116,6 @@ export function ProceduralScene() {
           roughness: 0.24,
         }),
       };
-      const supplementalMaterials: THREE.Material[] = [];
-      const sceneTextures: THREE.Texture[] = [];
 
       const box = (
         width: number,
@@ -310,10 +309,12 @@ export function ProceduralScene() {
         chapterMachine.add(group);
         return group;
       });
-      const [rollGroup, dropGroup, finishGroup] = chapterGroups;
+      const [rollGroup, dropGroup, basketGroup] = chapterGroups;
       const chapterBall = sphere(0.2, materials.lime);
       chapterBall.visible = false;
-      chapterMachine.add(chapterBall);
+      const chapterShotBall = sphere(0.2, materials.orange);
+      chapterShotBall.visible = false;
+      chapterMachine.add(chapterBall, chapterShotBall);
 
       const addPlatform = (group: THREE.Group, width = 7.8) => {
         const base = box(width, 0.16, 2.8, materials.ink);
@@ -348,78 +349,108 @@ export function ProceduralScene() {
       rollStartLamp.position.set(-3.48, 0.03, 0);
       rollGroup.add(rollStartPost, rollStartLamp);
 
-      const dropBaseLeft = box(3.5, 0.16, 2.8, materials.ink);
-      const dropBaseRight = dropBaseLeft.clone();
-      dropBaseLeft.position.set(-2.15, -1.05, 0);
-      dropBaseRight.position.set(2.15, -1.05, 0);
+      const dropBaseLeft = box(0.58, 0.16, 2.8, materials.ink);
+      const dropBaseRight = box(6.56, 0.16, 2.8, materials.ink);
+      dropBaseLeft.position.set(-3.61, -1.05, 0);
+      dropBaseRight.position.set(0.58, -1.05, 0);
       dropGroup.add(dropBaseLeft, dropBaseRight);
-      addChapterRail(dropGroup, chapterPaths["drop-center"]);
+      addChapterRail(dropGroup, chapterPaths["drop-left"]);
       const dropRim = new THREE.Mesh(
         new THREE.TorusGeometry(0.43, 0.055, 10, 40),
         materials.orange,
       );
-      dropRim.position.set(0, -0.87, -0.12);
+      dropRim.position.set(-3.17, -0.87, -0.12);
       dropGroup.add(dropRim);
       const leftFlapPivot = new THREE.Group();
       const leftFlap = box(0.38, 0.08, 0.72, materials.ivory);
       leftFlap.position.x = 0.19;
       leftFlapPivot.add(leftFlap);
-      leftFlapPivot.position.set(-0.38, -0.82, 0.08);
+      leftFlapPivot.position.set(-3.55, -0.82, 0.08);
       const rightFlapPivot = new THREE.Group();
       const rightFlap = box(0.38, 0.08, 0.72, materials.ivory);
       rightFlap.position.x = -0.19;
       rightFlapPivot.add(rightFlap);
-      rightFlapPivot.position.set(0.38, -0.82, 0.08);
+      rightFlapPivot.position.set(-2.79, -0.82, 0.08);
       dropGroup.add(leftFlapPivot, rightFlapPivot);
 
-      addPlatform(finishGroup);
-      addChapterRail(finishGroup, chapterPaths.finish);
-      const finishButtonHomeY = -0.69;
-      const finishButton = new THREE.Group();
-      const finishButtonBase = box(1.55, 0.34, 0.82, materials.lavender);
-      const finishLabelCanvas = document.createElement("canvas");
-      finishLabelCanvas.width = 512;
-      finishLabelCanvas.height = 160;
-      const finishLabelContext = finishLabelCanvas.getContext("2d");
-      if (finishLabelContext) {
-        finishLabelContext.clearRect(0, 0, 512, 160);
-        finishLabelContext.fillStyle = palette.ink;
-        finishLabelContext.font = "700 74px Arial, sans-serif";
-        finishLabelContext.textAlign = "center";
-        finishLabelContext.textBaseline = "middle";
-        finishLabelContext.fillText("FINISH", 256, 84);
-      }
-      const finishLabelTexture = new THREE.CanvasTexture(finishLabelCanvas);
-      finishLabelTexture.colorSpace = THREE.SRGBColorSpace;
-      finishLabelTexture.needsUpdate = true;
-      sceneTextures.push(finishLabelTexture);
-      const finishLabelMaterial = new THREE.MeshBasicMaterial({
-        map: finishLabelTexture,
-        transparent: true,
-      });
-      supplementalMaterials.push(finishLabelMaterial);
-      const finishLabel = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.2, 0.36),
-        finishLabelMaterial,
-      );
-      finishLabel.position.z = 0.42;
-      finishButton.add(finishButtonBase, finishLabel);
-      finishButton.position.set(0.15, finishButtonHomeY, 0);
-      finishGroup.add(finishButton);
-      const buttonPedestal = box(2.05, 0.22, 1.32, materials.ink);
-      buttonPedestal.position.set(0.15, -1.03, 0);
-      finishGroup.add(buttonPedestal);
+      addPlatform(basketGroup);
+      addChapterRail(basketGroup, chapterPaths["basket-shot"]);
 
-      const flagStartY = -1.82;
-      const flagEndY = -0.72;
-      const finishFlag = new THREE.Group();
-      const flagPole = box(0.08, 1.55, 0.08, materials.ivory);
-      flagPole.position.y = 0.78;
-      const flagCloth = box(0.92, 0.44, 0.06, materials.lime);
-      flagCloth.position.set(0.46, 1.28, 0);
-      finishFlag.add(flagPole, flagCloth);
-      finishFlag.position.set(0.82, flagStartY, 0);
-      finishGroup.add(finishFlag);
+      const catapultHomeRotation = -0.06;
+      const catapult = new THREE.Group();
+      const catapultBoard = box(1.72, 0.14, 0.58, materials.orange);
+      const strikePad = box(0.42, 0.12, 0.72, materials.lavender);
+      strikePad.position.set(-0.72, 0.13, 0);
+      const launchCradle = box(0.42, 0.12, 0.72, materials.ivory);
+      launchCradle.position.set(0.72, 0.13, 0);
+      const catapultPivot = cylinder(0.2, 0.68, materials.steel, 18);
+      catapultPivot.rotation.x = Math.PI / 2;
+      catapultPivot.position.y = -0.22;
+      catapult.add(catapultBoard, strikePad, launchCradle, catapultPivot);
+      catapult.position.set(
+        basketLayout.catapultPivot.x,
+        basketLayout.catapultPivot.y,
+        0,
+      );
+      catapult.rotation.z = catapultHomeRotation;
+      basketGroup.add(catapult);
+
+      const hoopGroup = new THREE.Group();
+      const hoopSupport = box(0.12, 2.16, 0.14, materials.steel);
+      hoopSupport.position.set(0.72, -0.03, -0.2);
+      const backboard = box(1.48, 1.48, 0.13, materials.ivory);
+      backboard.position.set(0, 0.78, -0.08);
+      const targetTop = box(0.66, 0.055, 0.035, materials.orange);
+      const targetBottom = targetTop.clone();
+      const targetLeft = box(0.055, 0.66, 0.035, materials.orange);
+      const targetRight = targetLeft.clone();
+      targetTop.position.set(0, 1.11, 0.02);
+      targetBottom.position.set(0, 0.45, 0.02);
+      targetLeft.position.set(-0.33, 0.78, 0.02);
+      targetRight.position.set(0.33, 0.78, 0.02);
+      const hoopRim = box(0.9, 0.16, 0.2, materials.orange);
+      hoopRim.position.set(0, 0, 0.24);
+
+      const netCord = (
+        start: Readonly<{ x: number; y: number }>,
+        end: Readonly<{ x: number; y: number }>,
+      ) => {
+        const startPoint = new THREE.Vector3(start.x, start.y, 0.24);
+        const endPoint = new THREE.Vector3(end.x, end.y, 0.24);
+        const direction = endPoint.clone().sub(startPoint);
+        const cord = cylinder(0.014, direction.length(), materials.ivory, 8);
+        cord.position.copy(startPoint).add(endPoint).multiplyScalar(0.5);
+        cord.quaternion.setFromUnitVectors(
+          new THREE.Vector3(0, 1, 0),
+          direction.normalize(),
+        );
+        return cord;
+      };
+      const netCords = [
+        netCord({ x: -0.4, y: -0.09 }, { x: -0.22, y: -0.68 }),
+        netCord({ x: -0.2, y: -0.09 }, { x: -0.1, y: -0.68 }),
+        netCord({ x: 0, y: -0.09 }, { x: 0, y: -0.68 }),
+        netCord({ x: 0.2, y: -0.09 }, { x: 0.1, y: -0.68 }),
+        netCord({ x: 0.4, y: -0.09 }, { x: 0.22, y: -0.68 }),
+      ];
+      const netCrossbarTop = box(0.7, 0.025, 0.025, materials.ivory);
+      netCrossbarTop.position.set(0, -0.32, 0.24);
+      const netCrossbarBottom = box(0.46, 0.025, 0.025, materials.ivory);
+      netCrossbarBottom.position.set(0, -0.56, 0.24);
+      const hoopNet = new THREE.Group();
+      hoopNet.add(...netCords, netCrossbarTop, netCrossbarBottom);
+      hoopGroup.add(
+        hoopSupport,
+        backboard,
+        targetTop,
+        targetBottom,
+        targetLeft,
+        targetRight,
+        hoopRim,
+        hoopNet,
+      );
+      hoopGroup.position.set(basketLayout.hoop.x, basketLayout.hoop.y, 0);
+      basketGroup.add(hoopGroup);
 
       const confettiMaterials = [
         materials.lime,
@@ -434,7 +465,7 @@ export function ProceduralScene() {
           confettiMaterials[piece.colorIndex],
         );
         confetti.visible = false;
-        finishGroup.add(confetti);
+        basketGroup.add(confetti);
         return confetti;
       });
 
@@ -515,9 +546,13 @@ export function ProceduralScene() {
         if (width < 700) {
           introMachine.scale.setScalar(0.8);
           introMachine.position.set(0.45, -0.4, 0);
+          chapterMachine.scale.setScalar(0.68);
+          chapterMachine.position.set(0, 0.08, 0);
         } else {
           introMachine.scale.setScalar(1);
           introMachine.position.set(0.15, -0.2, 0);
+          chapterMachine.scale.setScalar(1);
+          chapterMachine.position.set(0, 0, 0);
         }
         render();
       };
@@ -624,14 +659,20 @@ export function ProceduralScene() {
         canvas.dataset.machineProgress = progress.toFixed(4);
         canvas.dataset.machineBallX = sample.ball.x.toFixed(4);
         canvas.dataset.machineBallY = sample.ball.y.toFixed(4);
-        canvas.dataset.machineButton = sample.buttonProgress.toFixed(4);
-        canvas.dataset.machineFlag = sample.flagProgress.toFixed(4);
+        canvas.dataset.machineShotBallX = sample.shotBall.x.toFixed(4);
+        canvas.dataset.machineShotBallY = sample.shotBall.y.toFixed(4);
+        canvas.dataset.machineShotBallVisible = `${sample.shotBall.visible}`;
+        canvas.dataset.machineCatapult = sample.catapultProgress.toFixed(4);
+        canvas.dataset.machineShot = sample.shotProgress.toFixed(4);
+        canvas.dataset.machineScore = sample.scoreProgress.toFixed(4);
         canvas.dataset.machineConfetti = sample.confettiProgress.toFixed(4);
         introMachine.visible = false;
         chapterMachine.visible = true;
         chapterGroups.forEach((group, groupIndex) => {
           group.visible = groupIndex === index;
         });
+        chapterMachine.position.y =
+          window.innerWidth < 700 ? 0.08 : action === "roll-right" ? 0 : 0.3;
         chapterBall.visible = true;
         if (sceneShell) sceneShell.style.visibility = "visible";
         clipSceneToChapter(index);
@@ -640,41 +681,51 @@ export function ProceduralScene() {
         camera.position.x =
           action === "roll-right"
             ? THREE.MathUtils.lerp(-0.18, 0.18, progress)
-            : action === "drop-center"
-              ? THREE.MathUtils.lerp(0.16, 0, progress)
-              : 0;
+            : action === "drop-left"
+              ? THREE.MathUtils.lerp(0.16, -0.18, progress)
+              : THREE.MathUtils.lerp(-0.16, 0.16, sample.shotProgress);
         camera.position.y =
-          action === "finish" ? THREE.MathUtils.lerp(0.18, -0.08, progress) : 0;
-        camera.position.z = window.innerWidth < 700 ? 12.2 : 8.6;
-        cameraTarget.set(0, action === "finish" ? 0.08 : -0.05, 0);
+          action === "basket-shot"
+            ? THREE.MathUtils.lerp(0.16, -0.02, progress)
+            : 0;
+        camera.position.z = window.innerWidth < 700 ? 14.6 : 8.6;
+        cameraTarget.set(0, action === "basket-shot" ? 0.12 : -0.05, 0);
 
         chapterBall.position.set(sample.ball.x, sample.ball.y, 0);
         chapterBall.rotation.z = sample.ball.rotation;
+        chapterShotBall.visible = sample.shotBall.visible;
+        chapterShotBall.position.set(
+          sample.shotBall.x,
+          sample.shotBall.y,
+          0.04,
+        );
+        chapterShotBall.rotation.z = sample.shotBall.rotation;
         leftFlapPivot.rotation.z = -sample.dropProgress * Math.PI * 0.38;
         rightFlapPivot.rotation.z = sample.dropProgress * Math.PI * 0.38;
-        finishButton.position.y =
-          finishButtonHomeY - sample.buttonProgress * 0.16;
-        finishButton.scale.y = 1 - sample.buttonProgress * 0.12;
-        finishFlag.position.y = THREE.MathUtils.lerp(
-          flagStartY,
-          flagEndY,
-          sample.flagProgress,
-        );
-        flagCloth.scale.x = Math.max(0.02, sample.flagProgress);
-        flagCloth.position.x = 0.46 * sample.flagProgress;
+        catapult.rotation.z =
+          catapultHomeRotation + sample.catapultProgress * Math.PI * 0.2;
+        strikePad.scale.y =
+          1 + Math.sin(sample.catapultProgress * Math.PI) * 0.28;
+        launchCradle.scale.y =
+          1 + Math.sin(sample.catapultProgress * Math.PI) * 0.16;
+        hoopGroup.rotation.z =
+          Math.sin(sample.scoreProgress * Math.PI) * -0.035;
+        hoopRim.scale.x = 1 + Math.sin(sample.scoreProgress * Math.PI) * 0.12;
+        hoopRim.scale.y = 1 + Math.sin(sample.scoreProgress * Math.PI) * 0.08;
+        hoopNet.scale.y = 1 - Math.sin(sample.scoreProgress * Math.PI) * 0.12;
         confettiMeshes.forEach((confetti, confettiIndex) => {
           const piece = confettiPieces[confettiIndex];
           const confettiProgress = sample.confettiProgress;
           const distance = piece.distance * confettiProgress;
           confetti.visible = confettiProgress > 0.001;
           confetti.position.set(
-            0.15 + Math.cos(piece.angle) * distance,
-            finishButtonHomeY +
-              0.3 +
+            basketLayout.hoop.x + Math.cos(piece.angle) * distance,
+            basketLayout.hoop.y +
+              0.18 +
               Math.sin(piece.angle) * distance +
               Math.sin(confettiProgress * Math.PI) * piece.lift -
-              confettiProgress * confettiProgress * 0.32,
-            0.28 + (confettiIndex % 4) * 0.04,
+              confettiProgress * confettiProgress * 0.46,
+            0.34 + (confettiIndex % 4) * 0.04,
           );
           confetti.rotation.x = confettiProgress * piece.spin * 0.7;
           confetti.rotation.z = confettiProgress * piece.spin;
@@ -909,8 +960,6 @@ export function ProceduralScene() {
           object.geometry.dispose();
         });
         Object.values(materials).forEach((material) => material.dispose());
-        supplementalMaterials.forEach((material) => material.dispose());
-        sceneTextures.forEach((texture) => texture.dispose());
         scopeRef.current
           ?.closest<HTMLElement>("[data-scene-shell]")
           ?.removeAttribute("data-webgl");
