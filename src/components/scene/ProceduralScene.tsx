@@ -407,6 +407,7 @@ export function ProceduralScene() {
 
       chapterMachine.visible = !introActive;
       introMachine.visible = introActive;
+      canvas.dataset.machineMode = introActive ? "intro" : "idle";
       canvas.style.opacity = introActive ? "1" : "0";
 
       const baseCameraZ = () => (window.innerWidth < 700 ? 13.4 : 10.4);
@@ -520,15 +521,17 @@ export function ProceduralScene() {
         machineRunning = false;
         introMachine.visible = false;
         chapterMachine.visible = true;
+        canvas.dataset.machineMode = "idle";
         canvas.style.opacity = "0";
         if (sceneShell) sceneShell.style.visibility = "hidden";
         camera.position.set(0, 0, baseCameraZ());
         cameraTarget.set(0, 0, 0);
         renderNow();
+        requestAnimationFrame(() => ScrollTrigger.refresh());
       };
 
       const setChapter = (index: number, progress: number) => {
-        if (motionPaused) return;
+        if (introActive || motionPaused) return;
         if (
           index < 0 ||
           index >= chapterCenters.length ||
@@ -538,6 +541,7 @@ export function ProceduralScene() {
           return;
         activeChapter = index;
         activeProgress = progress;
+        canvas.dataset.machineMode = "chapter";
         canvas.dataset.machineChapter = `${index + 1}`;
         canvas.dataset.machineProgress = progress.toFixed(4);
         introMachine.visible = false;

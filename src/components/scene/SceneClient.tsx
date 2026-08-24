@@ -22,7 +22,7 @@ export function SceneClient() {
 
   return (
     <div className={styles.shell} data-scene-shell aria-hidden="true">
-      <div className={styles.fallback}>
+      <div className={styles.fallback} data-scene-fallback>
         <span className={styles.fallbackBase} />
         <span className={styles.fallbackRail} />
         <span className={styles.fallbackBall} />

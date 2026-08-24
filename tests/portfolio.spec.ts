@@ -184,6 +184,37 @@ test("supports keyboard holds, Escape, and development reloads", async ({
   await expect(page.locator("#main-content")).toBeFocused();
 });
 
+test("keeps the intro machine active when reloading from a restored scroll position", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "WebGL reload check");
+  await dismissIntro(page);
+
+  const transition = page.getByRole("region", {
+    name: "Battlefield",
+    exact: true,
+  });
+  await transition.scrollIntoViewIfNeeded();
+  await expect(page.locator("canvas")).toHaveAttribute(
+    "data-machine-mode",
+    "chapter",
+  );
+
+  await page.reload();
+  await expect(splash(page)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Hold to wind" }),
+  ).toBeVisible();
+  await expect(page.locator("canvas")).toHaveAttribute(
+    "data-machine-mode",
+    "intro",
+  );
+  await expect(page.locator("[data-scene-fallback]")).toHaveCSS(
+    "visibility",
+    "hidden",
+  );
+});
+
 test("preserves a requested hash after dismissal", async ({ page }) => {
   await page.goto("/#contact");
   await dismissIntro(page);

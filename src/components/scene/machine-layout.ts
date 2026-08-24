@@ -20,12 +20,12 @@ export const introMachineLayout = {
     height: 0.72,
   },
   seesaw: {
-    x: 1.58,
+    x: 1.68,
     y: -0.48,
     width: 1.02,
     height: 0.1,
   },
-  orangeBall: { radius: 0.19, x: 1.88, y: -0.25 },
+  orangeBall: { radius: 0.19, x: 1.98, y: -0.25 },
   enterKey: { x: 3.3, y: -0.78, width: 1.02, height: 0.26 },
 } as const;
 

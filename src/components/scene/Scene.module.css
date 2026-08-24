@@ -25,11 +25,13 @@
   top: 50%;
   transform: translate(-50%, -50%) rotate(-2deg);
   opacity: 1;
+  visibility: visible;
   transition: opacity 180ms ease;
 }
 
 .shell[data-webgl="ready"] .fallback {
   opacity: 0;
+  visibility: hidden;
 }
 
 .fallbackBase,
