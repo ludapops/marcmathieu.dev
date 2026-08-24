@@ -96,7 +96,14 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
         } catch {
           // Preserve malformed hashes without allowing them to block entry.
         }
-        hashTarget?.scrollIntoView({ block: "start" });
+        if (hashTarget) {
+          const previousScrollBehavior =
+            document.documentElement.style.scrollBehavior;
+          document.documentElement.style.scrollBehavior = "auto";
+          hashTarget.scrollIntoView({ block: "start", behavior: "auto" });
+          document.documentElement.style.scrollBehavior =
+            previousScrollBehavior;
+        }
 
         if (restoreFocus) {
           document.querySelector<HTMLElement>("#main-content")?.focus({

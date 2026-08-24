@@ -10,6 +10,33 @@ async function dismissIntro(page: Page) {
   await expect(splash(page)).toBeHidden();
 }
 
+async function setTransitionProgress(
+  page: Page,
+  name: "AG1" | "Battlefield" | "BeautyNexos",
+  progress: number,
+) {
+  const transition = page.getByRole("region", { name, exact: true });
+  const bounds = await transition.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      top: rect.top + window.scrollY,
+      height: rect.height,
+      viewportHeight: window.innerHeight,
+    };
+  });
+  await page.evaluate(
+    ({ bounds: section, progress: targetProgress }) =>
+      window.scrollTo(
+        0,
+        section.top -
+          section.viewportHeight +
+          targetProgress * (section.height + section.viewportHeight),
+      ),
+    { bounds, progress },
+  );
+  await page.waitForTimeout(250);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
 });
@@ -386,6 +413,85 @@ test("scrubs connected machine chapters and Pause Motion freezes them", async ({
   expect(pausedFrameA).toBe(pausedFrameB);
 });
 
+test("continues one marble through roll, drop, and finish chapters", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "WebGL story check");
+
+  await dismissIntro(page);
+  const canvas = page.locator("[data-machine-canvas]");
+
+  await setTransitionProgress(page, "AG1", 0.05);
+  await expect(canvas).toHaveAttribute("data-machine-action", "roll-right");
+  const rollStartX = Number(await canvas.getAttribute("data-machine-ball-x"));
+  await setTransitionProgress(page, "AG1", 0.95);
+  const rollEndX = Number(await canvas.getAttribute("data-machine-ball-x"));
+  expect(rollEndX).toBeGreaterThan(rollStartX + 5);
+
+  await setTransitionProgress(page, "Battlefield", 0.05);
+  await expect(canvas).toHaveAttribute("data-machine-action", "drop-center");
+  const dropStartX = Number(await canvas.getAttribute("data-machine-ball-x"));
+  await setTransitionProgress(page, "Battlefield", 0.76);
+  const dropEndX = Number(await canvas.getAttribute("data-machine-ball-x"));
+  const dropEndY = Number(await canvas.getAttribute("data-machine-ball-y"));
+  expect(dropStartX).toBeCloseTo(rollEndX, 0);
+  expect(Math.abs(dropEndX)).toBeLessThan(0.1);
+  expect(dropEndY).toBeLessThan(-2.5);
+
+  await setTransitionProgress(page, "BeautyNexos", 0.62);
+  await expect(canvas).toHaveAttribute("data-machine-action", "finish");
+  expect(Number(await canvas.getAttribute("data-machine-button"))).toBe(1);
+  expect(Number(await canvas.getAttribute("data-machine-flag"))).toBe(1);
+  expect(Number(await canvas.getAttribute("data-machine-confetti"))).toBe(1);
+
+  await setTransitionProgress(page, "BeautyNexos", 0.25);
+  expect(Number(await canvas.getAttribute("data-machine-button"))).toBe(0);
+  expect(Number(await canvas.getAttribute("data-machine-flag"))).toBe(0);
+  expect(Number(await canvas.getAttribute("data-machine-confetti"))).toBe(0);
+});
+
+test("clips the chapter machine to its dark transition", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "WebGL boundary check");
+
+  await dismissIntro(page);
+
+  const transition = page.getByRole("region", { name: "AG1", exact: true });
+  const transitionTop = await transition.evaluate(
+    (element) => element.getBoundingClientRect().top + window.scrollY,
+  );
+  await page.evaluate(
+    (top) => window.scrollTo(0, top - window.innerHeight * 0.58),
+    transitionTop,
+  );
+  await page.waitForTimeout(250);
+
+  const boundary = await page.evaluate(() => {
+    const transitionElement = document.querySelector<HTMLElement>(
+      '[data-machine-chapter="ag1"]',
+    );
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      "[data-machine-canvas]",
+    );
+    const shell = document.querySelector<HTMLElement>("[data-scene-shell]");
+    if (!transitionElement || !canvas || !shell) return null;
+
+    return {
+      transitionTop: transitionElement.getBoundingClientRect().top,
+      clipTop: Number(canvas.dataset.machineClipTop),
+      clipPath: getComputedStyle(shell).clipPath,
+    };
+  });
+
+  expect(boundary).not.toBeNull();
+  expect(boundary?.transitionTop).toBeGreaterThan(0);
+  expect(
+    Math.abs((boundary?.clipTop ?? 0) - (boundary?.transitionTop ?? 0)),
+  ).toBeLessThan(1);
+  expect(boundary?.clipPath).not.toBe("none");
+});
+
 test("uses varied content motion without scroll blur", async ({ page }) => {
   await dismissIntro(page);
   const filters = await page
@@ -443,19 +549,33 @@ test("@visual mobile splash", async ({ page }, testInfo) => {
   });
 });
 
-test("@visual project machine transition", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium", "Machine chapter baseline");
-  await dismissIntro(page);
-  const transition = page.getByRole("region", { name: "AG1", exact: true });
-  const bounds = await transition.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return { top: rect.top + window.scrollY, height: rect.height };
+for (const chapter of [
+  { name: "AG1", progress: 0.5, snapshot: "machine-roll.png" },
+  { name: "Battlefield", progress: 0.58, snapshot: "machine-drop.png" },
+  { name: "BeautyNexos", progress: 0.6, snapshot: "machine-finish.png" },
+] as const) {
+  test(`@visual ${chapter.name} machine chapter`, async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "chromium", "Desktop chapter baseline");
+    await dismissIntro(page);
+    await setTransitionProgress(page, chapter.name, chapter.progress);
+    await page.getByRole("button", { name: "Pause motion" }).click();
+    await page.waitForTimeout(150);
+    await expect(page).toHaveScreenshot(chapter.snapshot, {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.001,
+    });
   });
-  await page.evaluate((top) => window.scrollTo(0, top), bounds.top);
-  await page.waitForTimeout(250);
+}
+
+test("@visual mobile finish chapter", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Mobile finish baseline");
+  await dismissIntro(page);
+  await setTransitionProgress(page, "BeautyNexos", 0.6);
   await page.getByRole("button", { name: "Pause motion" }).click();
   await page.waitForTimeout(150);
-  await expect(page).toHaveScreenshot("machine-transition.png", {
+  await expect(page).toHaveScreenshot("machine-finish-mobile.png", {
     animations: "disabled",
     maxDiffPixelRatio: 0.001,
   });

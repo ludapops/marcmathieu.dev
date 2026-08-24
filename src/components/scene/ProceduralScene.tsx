@@ -15,6 +15,12 @@ import {
   type MachineWindDetail,
   introEvents,
 } from "@/components/experience/intro-events";
+import {
+  chapterActions,
+  chapterPaths,
+  confettiPieces,
+  sampleChapter,
+} from "./chapter-machine";
 import { introCameraStages, introMachineLayout } from "./machine-layout";
 import styles from "./Scene.module.css";
 
@@ -109,6 +115,8 @@ export function ProceduralScene() {
           roughness: 0.24,
         }),
       };
+      const supplementalMaterials: THREE.Material[] = [];
+      const sceneTextures: THREE.Texture[] = [];
 
       const box = (
         width: number,
@@ -138,6 +146,26 @@ export function ProceduralScene() {
         material: THREE.Material,
       ) => {
         const curve = new THREE.CatmullRomCurve3(points);
+        return {
+          curve,
+          mesh: new THREE.Mesh(
+            new THREE.TubeGeometry(curve, 100, radius, 8, false),
+            material,
+          ),
+        };
+      };
+
+      const cubicTube = (
+        path: (typeof chapterPaths)[(typeof chapterActions)[number]],
+        radius: number,
+        material: THREE.Material,
+      ) => {
+        const curve = new THREE.CubicBezierCurve3(
+          new THREE.Vector3(path.start.x, path.start.y, 0),
+          new THREE.Vector3(path.controlA.x, path.controlA.y, 0),
+          new THREE.Vector3(path.controlB.x, path.controlB.y, 0),
+          new THREE.Vector3(path.end.x, path.end.y, 0),
+        );
         return {
           curve,
           mesh: new THREE.Mesh(
@@ -276,104 +304,138 @@ export function ProceduralScene() {
       );
       introMachine.add(enterKey);
 
-      const chapterCenters = [-5.2, 0, 5.2] as const;
-      const chapterBalls: THREE.Mesh[] = [];
-      const chapterCurves: THREE.CatmullRomCurve3[] = [];
-      const chapterWheels: THREE.Group[] = [];
-      const chapterDominoes: THREE.Mesh[][] = [];
-      const chapterArms: THREE.Group[] = [];
-
-      const connector = tube(
-        [
-          new THREE.Vector3(-7.8, -0.45, 0),
-          new THREE.Vector3(-4.5, 0.62, 0),
-          new THREE.Vector3(-1.8, -0.18, 0),
-          new THREE.Vector3(1.7, 0.52, 0),
-          new THREE.Vector3(4.2, -0.2, 0),
-          new THREE.Vector3(7.8, 0.58, 0),
-        ],
-        0.035,
-        materials.steel,
-      ).mesh;
-      const connectorTwin = connector.clone();
-      connector.position.z = -0.24;
-      connectorTwin.position.z = 0.24;
-      chapterMachine.add(connector, connectorTwin);
-
-      chapterCenters.forEach((center, moduleIndex) => {
+      const chapterGroups = chapterActions.map(() => {
         const group = new THREE.Group();
-        group.position.x = center;
-        const base = box(4.25, 0.14, 2.7, materials.ink);
-        base.position.y = -1.02;
-        group.add(base);
-
-        const accentMaterial = [
-          materials.lime,
-          materials.orange,
-          materials.lavender,
-        ][moduleIndex];
-        const wheel = new THREE.Group();
-        const rim = new THREE.Mesh(
-          new THREE.TorusGeometry(0.72, 0.055, 10, 48),
-          accentMaterial,
-        );
-        const spokeA = box(1.34, 0.055, 0.055, materials.ivory);
-        const spokeB = spokeA.clone();
-        spokeB.rotation.z = Math.PI / 2;
-        wheel.add(rim, spokeA, spokeB);
-        wheel.position.set(-1.25, 0.18, -0.18);
-        group.add(wheel);
-
-        const curveData = tube(
-          [
-            new THREE.Vector3(-1.85, 0.78, 0.15),
-            new THREE.Vector3(-0.8, 0.98, -0.05),
-            new THREE.Vector3(0.15, 0.32, 0.12),
-            new THREE.Vector3(1.6, -0.12, 0),
-          ],
-          0.04,
-          materials.steel,
-        );
-        const curveTwin = curveData.mesh.clone();
-        curveData.mesh.position.z = -0.18;
-        curveTwin.position.z = 0.18;
-        group.add(curveData.mesh, curveTwin);
-
-        const ball = sphere(0.17, accentMaterial);
-        ball.position.copy(curveData.curve.getPoint(0));
-        group.add(ball);
-
-        const moduleDominoes = Array.from({ length: 6 }, (_, dominoIndex) => {
-          const domino = box(0.12, 0.64, 0.36, materials.ivory);
-          domino.position.set(0.18 + dominoIndex * 0.27, -0.64, 0.2);
-          group.add(domino);
-          return domino;
-        });
-
-        const arm = new THREE.Group();
-        const plank = box(1.05, 0.09, 0.42, accentMaterial);
-        const pin = cylinder(0.15, 0.46, materials.steel, 16);
-        pin.rotation.x = Math.PI / 2;
-        pin.position.y = -0.18;
-        arm.add(plank, pin);
-        arm.position.set(1.35, -0.28, 0);
-        group.add(arm);
-
-        if (moduleIndex === 2) {
-          const stampPost = box(0.14, 1.15, 0.14, materials.ivory);
-          stampPost.position.set(1.68, 0.08, 0);
-          const stampHead = box(0.74, 0.2, 0.55, materials.lavender);
-          stampHead.position.set(1.68, 0.62, 0);
-          group.add(stampPost, stampHead);
-          arm.userData.stamp = stampHead;
-        }
-
+        group.visible = false;
         chapterMachine.add(group);
-        chapterBalls.push(ball);
-        chapterCurves.push(curveData.curve);
-        chapterWheels.push(wheel);
-        chapterDominoes.push(moduleDominoes);
-        chapterArms.push(arm);
+        return group;
+      });
+      const [rollGroup, dropGroup, finishGroup] = chapterGroups;
+      const chapterBall = sphere(0.2, materials.lime);
+      chapterBall.visible = false;
+      chapterMachine.add(chapterBall);
+
+      const addPlatform = (group: THREE.Group, width = 7.8) => {
+        const base = box(width, 0.16, 2.8, materials.ink);
+        base.position.y = -1.05;
+        group.add(base);
+        for (let index = 0; index < 10; index += 1) {
+          const mark = box(0.018, 0.02, 0.34, materials.ivory);
+          mark.position.set(-3.5 + index * 0.78, -0.95, 1.38);
+          group.add(mark);
+        }
+      };
+
+      const addChapterRail = (
+        group: THREE.Group,
+        path: (typeof chapterPaths)[(typeof chapterActions)[number]],
+      ) => {
+        const rail = cubicTube(path, 0.04, materials.steel);
+        const twin = rail.mesh.clone();
+        rail.mesh.position.y = -introMachineLayout.marble.radius;
+        twin.position.y = -introMachineLayout.marble.radius;
+        rail.mesh.position.z = -0.2;
+        twin.position.z = 0.2;
+        group.add(rail.mesh, twin);
+        return rail.curve;
+      };
+
+      addPlatform(rollGroup);
+      addChapterRail(rollGroup, chapterPaths["roll-right"]);
+      const rollStartPost = box(0.1, 0.9, 0.5, materials.ivory);
+      rollStartPost.position.set(-3.48, -0.48, 0);
+      const rollStartLamp = sphere(0.13, materials.orange);
+      rollStartLamp.position.set(-3.48, 0.03, 0);
+      rollGroup.add(rollStartPost, rollStartLamp);
+
+      const dropBaseLeft = box(3.5, 0.16, 2.8, materials.ink);
+      const dropBaseRight = dropBaseLeft.clone();
+      dropBaseLeft.position.set(-2.15, -1.05, 0);
+      dropBaseRight.position.set(2.15, -1.05, 0);
+      dropGroup.add(dropBaseLeft, dropBaseRight);
+      addChapterRail(dropGroup, chapterPaths["drop-center"]);
+      const dropRim = new THREE.Mesh(
+        new THREE.TorusGeometry(0.43, 0.055, 10, 40),
+        materials.orange,
+      );
+      dropRim.position.set(0, -0.87, -0.12);
+      dropGroup.add(dropRim);
+      const leftFlapPivot = new THREE.Group();
+      const leftFlap = box(0.38, 0.08, 0.72, materials.ivory);
+      leftFlap.position.x = 0.19;
+      leftFlapPivot.add(leftFlap);
+      leftFlapPivot.position.set(-0.38, -0.82, 0.08);
+      const rightFlapPivot = new THREE.Group();
+      const rightFlap = box(0.38, 0.08, 0.72, materials.ivory);
+      rightFlap.position.x = -0.19;
+      rightFlapPivot.add(rightFlap);
+      rightFlapPivot.position.set(0.38, -0.82, 0.08);
+      dropGroup.add(leftFlapPivot, rightFlapPivot);
+
+      addPlatform(finishGroup);
+      addChapterRail(finishGroup, chapterPaths.finish);
+      const finishButtonHomeY = -0.69;
+      const finishButton = new THREE.Group();
+      const finishButtonBase = box(1.55, 0.34, 0.82, materials.lavender);
+      const finishLabelCanvas = document.createElement("canvas");
+      finishLabelCanvas.width = 512;
+      finishLabelCanvas.height = 160;
+      const finishLabelContext = finishLabelCanvas.getContext("2d");
+      if (finishLabelContext) {
+        finishLabelContext.clearRect(0, 0, 512, 160);
+        finishLabelContext.fillStyle = palette.ink;
+        finishLabelContext.font = "700 74px Arial, sans-serif";
+        finishLabelContext.textAlign = "center";
+        finishLabelContext.textBaseline = "middle";
+        finishLabelContext.fillText("FINISH", 256, 84);
+      }
+      const finishLabelTexture = new THREE.CanvasTexture(finishLabelCanvas);
+      finishLabelTexture.colorSpace = THREE.SRGBColorSpace;
+      finishLabelTexture.needsUpdate = true;
+      sceneTextures.push(finishLabelTexture);
+      const finishLabelMaterial = new THREE.MeshBasicMaterial({
+        map: finishLabelTexture,
+        transparent: true,
+      });
+      supplementalMaterials.push(finishLabelMaterial);
+      const finishLabel = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.2, 0.36),
+        finishLabelMaterial,
+      );
+      finishLabel.position.z = 0.42;
+      finishButton.add(finishButtonBase, finishLabel);
+      finishButton.position.set(0.15, finishButtonHomeY, 0);
+      finishGroup.add(finishButton);
+      const buttonPedestal = box(2.05, 0.22, 1.32, materials.ink);
+      buttonPedestal.position.set(0.15, -1.03, 0);
+      finishGroup.add(buttonPedestal);
+
+      const flagStartY = -1.82;
+      const flagEndY = -0.72;
+      const finishFlag = new THREE.Group();
+      const flagPole = box(0.08, 1.55, 0.08, materials.ivory);
+      flagPole.position.y = 0.78;
+      const flagCloth = box(0.92, 0.44, 0.06, materials.lime);
+      flagCloth.position.set(0.46, 1.28, 0);
+      finishFlag.add(flagPole, flagCloth);
+      finishFlag.position.set(0.82, flagStartY, 0);
+      finishGroup.add(finishFlag);
+
+      const confettiMaterials = [
+        materials.lime,
+        materials.orange,
+        materials.lavender,
+      ] as const;
+      const confettiMeshes = confettiPieces.map((piece, index) => {
+        const confetti = box(
+          index % 3 === 0 ? 0.16 : 0.1,
+          index % 3 === 0 ? 0.1 : 0.2,
+          0.035,
+          confettiMaterials[piece.colorIndex],
+        );
+        confetti.visible = false;
+        finishGroup.add(confetti);
+        return confetti;
       });
 
       scene.add(new THREE.AmbientLight("#ffffff", 1.65));
@@ -404,6 +466,25 @@ export function ProceduralScene() {
       let renderFrame = 0;
       const animations = new Set<gsap.core.Animation>();
       const cameraTarget = new THREE.Vector3(0, 0, 0);
+      const chapterElements = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-machine-chapter]"),
+      );
+
+      const clipSceneToChapter = (index: number) => {
+        const element = chapterElements[index];
+        if (!sceneShell || !element) return;
+
+        const rect = element.getBoundingClientRect();
+        const clipTop = THREE.MathUtils.clamp(rect.top, 0, window.innerHeight);
+        const clipBottom = THREE.MathUtils.clamp(
+          window.innerHeight - rect.bottom,
+          0,
+          window.innerHeight,
+        );
+        sceneShell.style.clipPath = `inset(${clipTop.toFixed(2)}px 0px ${clipBottom.toFixed(2)}px 0px)`;
+        canvas.dataset.machineClipTop = clipTop.toFixed(2);
+        canvas.dataset.machineClipBottom = clipBottom.toFixed(2);
+      };
 
       chapterMachine.visible = !introActive;
       introMachine.visible = introActive;
@@ -532,45 +613,73 @@ export function ProceduralScene() {
 
       const setChapter = (index: number, progress: number) => {
         if (introActive || motionPaused) return;
-        if (
-          index < 0 ||
-          index >= chapterCenters.length ||
-          !chapterCurves[index] ||
-          !chapterBalls[index]
-        )
-          return;
+        const action = chapterActions[index];
+        if (!action) return;
         activeChapter = index;
         activeProgress = progress;
+        const sample = sampleChapter(action, progress);
         canvas.dataset.machineMode = "chapter";
         canvas.dataset.machineChapter = `${index + 1}`;
+        canvas.dataset.machineAction = action;
         canvas.dataset.machineProgress = progress.toFixed(4);
+        canvas.dataset.machineBallX = sample.ball.x.toFixed(4);
+        canvas.dataset.machineBallY = sample.ball.y.toFixed(4);
+        canvas.dataset.machineButton = sample.buttonProgress.toFixed(4);
+        canvas.dataset.machineFlag = sample.flagProgress.toFixed(4);
+        canvas.dataset.machineConfetti = sample.confettiProgress.toFixed(4);
         introMachine.visible = false;
         chapterMachine.visible = true;
+        chapterGroups.forEach((group, groupIndex) => {
+          group.visible = groupIndex === index;
+        });
+        chapterBall.visible = true;
         if (sceneShell) sceneShell.style.visibility = "visible";
+        clipSceneToChapter(index);
         canvas.style.opacity = "1";
 
-        const center = chapterCenters[index];
         camera.position.x =
-          center + THREE.MathUtils.lerp(-0.72, 0.72, progress);
-        camera.position.y = Math.sin(progress * Math.PI) * 0.18;
+          action === "roll-right"
+            ? THREE.MathUtils.lerp(-0.18, 0.18, progress)
+            : action === "drop-center"
+              ? THREE.MathUtils.lerp(0.16, 0, progress)
+              : 0;
+        camera.position.y =
+          action === "finish" ? THREE.MathUtils.lerp(0.18, -0.08, progress) : 0;
         camera.position.z = window.innerWidth < 700 ? 12.2 : 8.6;
-        cameraTarget.set(center, -0.05, 0);
+        cameraTarget.set(0, action === "finish" ? 0.08 : -0.05, 0);
 
-        const ballPoint = chapterCurves[index].getPoint(smooth(progress));
-        chapterBalls[index].position.copy(ballPoint);
-        chapterBalls[index].rotation.z = progress * Math.PI * 5;
-        chapterWheels[index].rotation.z = -progress * Math.PI * 3.2;
-        chapterDominoes[index].forEach((domino, dominoIndex) => {
-          const local = smooth((progress - 0.36 - dominoIndex * 0.065) / 0.24);
-          domino.rotation.z = -local * Math.PI * 0.46;
+        chapterBall.position.set(sample.ball.x, sample.ball.y, 0);
+        chapterBall.rotation.z = sample.ball.rotation;
+        leftFlapPivot.rotation.z = -sample.dropProgress * Math.PI * 0.38;
+        rightFlapPivot.rotation.z = sample.dropProgress * Math.PI * 0.38;
+        finishButton.position.y =
+          finishButtonHomeY - sample.buttonProgress * 0.16;
+        finishButton.scale.y = 1 - sample.buttonProgress * 0.12;
+        finishFlag.position.y = THREE.MathUtils.lerp(
+          flagStartY,
+          flagEndY,
+          sample.flagProgress,
+        );
+        flagCloth.scale.x = Math.max(0.02, sample.flagProgress);
+        flagCloth.position.x = 0.46 * sample.flagProgress;
+        confettiMeshes.forEach((confetti, confettiIndex) => {
+          const piece = confettiPieces[confettiIndex];
+          const confettiProgress = sample.confettiProgress;
+          const distance = piece.distance * confettiProgress;
+          confetti.visible = confettiProgress > 0.001;
+          confetti.position.set(
+            0.15 + Math.cos(piece.angle) * distance,
+            finishButtonHomeY +
+              0.3 +
+              Math.sin(piece.angle) * distance +
+              Math.sin(confettiProgress * Math.PI) * piece.lift -
+              confettiProgress * confettiProgress * 0.32,
+            0.28 + (confettiIndex % 4) * 0.04,
+          );
+          confetti.rotation.x = confettiProgress * piece.spin * 0.7;
+          confetti.rotation.z = confettiProgress * piece.spin;
+          confetti.scale.setScalar(Math.min(1, confettiProgress * 5));
         });
-        chapterArms[index].rotation.z =
-          -smooth((progress - 0.75) / 0.2) * Math.PI * 0.16;
-        const stamp = chapterArms[index].userData.stamp as
-          THREE.Mesh | undefined;
-        if (stamp) {
-          stamp.position.y = 0.62 - smooth((progress - 0.72) / 0.2) * 0.72;
-        }
         render();
       };
 
@@ -726,9 +835,7 @@ export function ProceduralScene() {
           .call(() => machineStage("complete"), [], 2.53);
       };
 
-      const triggers = Array.from(
-        document.querySelectorAll<HTMLElement>("[data-machine-chapter]"),
-      ).map((element, index) =>
+      const triggers = chapterElements.map((element, index) =>
         ScrollTrigger.create({
           trigger: element,
           start: "top bottom",
@@ -802,11 +909,14 @@ export function ProceduralScene() {
           object.geometry.dispose();
         });
         Object.values(materials).forEach((material) => material.dispose());
+        supplementalMaterials.forEach((material) => material.dispose());
+        sceneTextures.forEach((texture) => texture.dispose());
         scopeRef.current
           ?.closest<HTMLElement>("[data-scene-shell]")
           ?.removeAttribute("data-webgl");
         delete document.documentElement.dataset.machineReady;
         sceneShell?.style.removeProperty("visibility");
+        sceneShell?.style.removeProperty("clip-path");
         renderer.dispose();
       };
     },
