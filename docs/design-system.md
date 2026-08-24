@@ -12,9 +12,9 @@ Use a twelve-column desktop grid and collapse to one readable column on small sc
 
 ## Motion
 
-Navigation and focus respond quickly. Chapter transitions move slowly enough to feel cinematic. Text and evidence stop moving inside Reading Zones. Pointer-proximity blur is confined to the Spatial Index.
+Navigation and focus respond quickly. Chapter transitions scrub a connected tabletop machine. Reading Zones use short masked, directional, or opacity reveals and never routine blur. The Spatial Index varies opacity and glyph rotation without defocusing text.
 
-The Pause Motion control stops decorative scene changes. Reduced-motion visitors receive static imagery and direct state changes.
+The Pause Motion control stops decorative scene changes. Reduced-motion visitors receive a static machine and direct state changes.
 
 ## Components
 

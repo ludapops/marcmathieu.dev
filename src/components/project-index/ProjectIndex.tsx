@@ -41,7 +41,7 @@ export function ProjectIndex({ projects }: { projects: Project[] }) {
   return (
     <div
       className={styles.grid}
-      data-motion-stagger
+      data-motion="cards"
       onPointerMove={updateFocus}
       onPointerLeave={resetFocus}
       ref={containerRef}

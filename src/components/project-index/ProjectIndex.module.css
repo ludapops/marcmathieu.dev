@@ -17,10 +17,8 @@
   border-right: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   opacity: calc(0.42 + var(--focus) * 0.58);
-  filter: blur(calc((1 - var(--focus)) * 5px));
   transition:
     opacity 120ms linear,
-    filter 120ms linear,
     background-color 180ms ease;
 }
 
@@ -113,7 +111,6 @@
   .card {
     min-height: 22rem;
     opacity: 1;
-    filter: none;
   }
 
   .glyph {

@@ -1,6 +1,6 @@
 # marcmathieu.dev
 
-Marc Mathieu's senior frontend portfolio. The site combines a server-rendered editorial narrative with a single direct Three.js scene, GSAP transitions, typed project evidence, and an executable design system.
+Marc Mathieu's senior frontend portfolio. The site combines a server-rendered editorial narrative with a direct Three.js scene, deterministic GSAP machine choreography, typed project evidence, and an executable design system.
 
 ## Development
 

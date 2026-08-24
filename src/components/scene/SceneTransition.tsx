@@ -3,17 +3,16 @@ import styles from "./SceneTransition.module.css";
 export function SceneTransition({
   index,
   label,
-  scene,
+  module,
 }: {
   index: string;
   label: string;
-  scene: "ag1" | "battlefield" | "beautynexos";
+  module: "ag1" | "battlefield" | "beautynexos";
 }) {
   return (
     <section
       className={styles.transition}
-      data-scene={scene}
-      data-scene-transition
+      data-machine-chapter={module}
       aria-label={label}
     >
       <p>

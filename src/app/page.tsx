@@ -8,12 +8,12 @@ export default function Home() {
   return (
     <main id="main-content" tabIndex={-1}>
       <section className={styles.hero} aria-labelledby="hero-title" id="top">
-        <div className={styles.heroMeta} data-motion-hero>
+        <div className={styles.heroMeta} data-motion="hero">
           <p>Miami · New York · Remote</p>
           <p>Available for senior frontend roles</p>
         </div>
 
-        <div className={styles.heroCopy} data-motion-hero>
+        <div className={styles.heroCopy} data-motion="hero">
           <p className={styles.eyebrow}>
             Marc Mathieu · Senior Frontend Engineer
           </p>
@@ -30,16 +30,10 @@ export default function Home() {
             <a href="mailto:avianmathieu@gmail.com">Email Marc</a>
           </div>
         </div>
-
-        <div className={styles.heroObject} data-motion-hero aria-hidden="true">
-          <span className={styles.orbit} />
-          <span className={styles.node} />
-          <span className={styles.axis} />
-        </div>
       </section>
 
       <section className={styles.work} id="work" aria-labelledby="work-title">
-        <header className={styles.sectionHeader} data-motion-reveal>
+        <header className={styles.sectionHeader} data-motion="heading">
           <p>Selected work · 01 / 03</p>
           <h2 id="work-title">Selected systems, built in the details.</h2>
           <p className={styles.sectionIntro}>
@@ -56,7 +50,7 @@ export default function Home() {
           <SceneTransition
             index={project.index}
             label={project.shortName}
-            scene={project.id}
+            module={project.id}
           />
           <CaseStudy project={project} />
         </div>
@@ -67,11 +61,11 @@ export default function Home() {
         id="experience"
         aria-labelledby="experience-title"
       >
-        <header className={styles.sectionHeader} data-motion-reveal>
+        <header className={styles.sectionHeader} data-motion="heading">
           <p>Experience · 2014 / 2026</p>
           <h2 id="experience-title">Twelve years in the interface layer.</h2>
         </header>
-        <div className={styles.timeline} data-motion-stagger>
+        <div className={styles.timeline} data-motion="rows">
           {career.map((item) => (
             <article key={`${item.company}-${item.period}`}>
               <p className={styles.timelinePeriod}>{item.period}</p>
@@ -96,10 +90,10 @@ export default function Home() {
         aria-labelledby="about-title"
       >
         <p className={styles.eyebrow}>About Marc</p>
-        <h2 id="about-title" data-motion-reveal>
+        <h2 id="about-title" data-motion="heading">
           I like the point where a complicated system becomes a clear interface.
         </h2>
-        <div className={styles.aboutCopy} data-motion-reveal>
+        <div className={styles.aboutCopy} data-motion="copy">
           <p>
             I am a Miami-based senior frontend engineer with more than a decade
             of experience building consumer and enterprise products. I have led
@@ -121,13 +115,13 @@ export default function Home() {
         aria-labelledby="contact-title"
       >
         <p className={styles.eyebrow}>Open to senior frontend roles</p>
-        <h2 id="contact-title" data-motion-reveal>
+        <h2 id="contact-title" data-motion="heading">
           Building something complicated?
         </h2>
         <a className={styles.email} href="mailto:avianmathieu@gmail.com">
           avianmathieu@gmail.com
         </a>
-        <div className={styles.contactLinks} data-motion-stagger>
+        <div className={styles.contactLinks} data-motion="rows">
           {contactLinks.map((link) => (
             <a
               href={link.href}

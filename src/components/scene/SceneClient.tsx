@@ -23,11 +23,18 @@ export function SceneClient() {
   return (
     <div className={styles.shell} data-scene-shell aria-hidden="true">
       <div className={styles.fallback}>
-        <i />
-        <i />
-        <i />
-        <i />
-        <i />
+        <span className={styles.fallbackBase} />
+        <span className={styles.fallbackRail} />
+        <span className={styles.fallbackBall} />
+        <span className={styles.fallbackDominoes}>
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </span>
+        <span className={styles.fallbackSeesaw} />
+        <span className={styles.fallbackKey} />
       </div>
       {webglEnabled ? <ProceduralScene /> : null}
     </div>

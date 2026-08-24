@@ -6,37 +6,34 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import * as THREE from "three";
 import {
-  type IntroProgressDetail,
-  type IntroRevealDetail,
+  dispatchMachineComplete,
+  dispatchMachineReady,
+  dispatchMachineStage,
+  dispatchMachineWebglFailure,
+  type MachineStage,
+  type MachineStartDetail,
+  type MachineWindDetail,
   introEvents,
 } from "@/components/experience/intro-events";
+import { introCameraStages, introMachineLayout } from "./machine-layout";
 import styles from "./Scene.module.css";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const sceneStates = {
-  ag1: {
-    color: "#b7ef36",
-    rotation: 0.25,
-    scale: 1,
-    x: -0.25,
-    y: 0.05,
-  },
-  battlefield: {
-    color: "#ff5e33",
-    rotation: 1.25,
-    scale: 1.16,
-    x: 0.35,
-    y: -0.08,
-  },
-  beautynexos: {
-    color: "#c7a5ff",
-    rotation: 2.2,
-    scale: 0.94,
-    x: 0,
-    y: 0.16,
-  },
+const palette = {
+  ink: "#171916",
+  ivory: "#f2efe7",
+  lime: "#b7ef36",
+  orange: "#ff5e33",
+  lavender: "#c7a5ff",
+  steel: "#676a63",
 } as const;
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+const smooth = (value: number) => {
+  const clamped = clamp01(value);
+  return clamped * clamped * (3 - 2 * clamped);
+};
 
 export function ProceduralScene() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -46,6 +43,8 @@ export function ProceduralScene() {
     () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
+      const sceneShell =
+        scopeRef.current?.closest<HTMLElement>("[data-scene-shell]");
 
       let renderer: THREE.WebGLRenderer;
       try {
@@ -55,250 +54,369 @@ export function ProceduralScene() {
           antialias: true,
           powerPreference: "high-performance",
         });
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFShadowMap;
       } catch {
         canvas.hidden = true;
+        dispatchMachineWebglFailure();
         return;
       }
+      scopeRef.current
+        ?.closest<HTMLElement>("[data-scene-shell]")
+        ?.setAttribute("data-webgl", "ready");
 
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
-      camera.position.set(0, 0, 6.8);
+      const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
+      const introMachine = new THREE.Group();
+      const chapterMachine = new THREE.Group();
+      scene.add(introMachine, chapterMachine);
 
-      const sceneRoot = new THREE.Group();
-      const pointerGroup = new THREE.Group();
-      const sculpture = new THREE.Group();
-      sceneRoot.add(pointerGroup);
-      pointerGroup.add(sculpture);
-      scene.add(sceneRoot);
+      const materials = {
+        ink: new THREE.MeshStandardMaterial({
+          color: palette.ink,
+          metalness: 0.6,
+          roughness: 0.32,
+        }),
+        ivory: new THREE.MeshStandardMaterial({
+          color: palette.ivory,
+          metalness: 0.12,
+          roughness: 0.55,
+        }),
+        lime: new THREE.MeshStandardMaterial({
+          color: palette.lime,
+          emissive: palette.lime,
+          emissiveIntensity: 0.2,
+          metalness: 0.25,
+          roughness: 0.28,
+        }),
+        orange: new THREE.MeshStandardMaterial({
+          color: palette.orange,
+          emissive: palette.orange,
+          emissiveIntensity: 0.12,
+          metalness: 0.2,
+          roughness: 0.35,
+        }),
+        lavender: new THREE.MeshStandardMaterial({
+          color: palette.lavender,
+          emissive: palette.lavender,
+          emissiveIntensity: 0.12,
+          metalness: 0.2,
+          roughness: 0.36,
+        }),
+        steel: new THREE.MeshStandardMaterial({
+          color: palette.steel,
+          metalness: 0.8,
+          roughness: 0.24,
+        }),
+      };
 
-      const accentMaterial = new THREE.MeshStandardMaterial({
-        color: sceneStates.ag1.color,
-        emissive: sceneStates.ag1.color,
-        emissiveIntensity: 0.22,
-        metalness: 0.55,
-        roughness: 0.28,
-      });
-      const ribbonMaterial = new THREE.MeshBasicMaterial({
-        color: sceneStates.ag1.color,
-        transparent: true,
-        opacity: 0.82,
-      });
-      const wireMaterial = new THREE.MeshBasicMaterial({
-        color: "#f2efe7",
-        transparent: true,
-        opacity: 0.58,
-        wireframe: true,
-      });
-      const ringMaterial = new THREE.MeshBasicMaterial({
-        color: "#f2efe7",
-        transparent: true,
-        opacity: 0.38,
-      });
-      const particleMaterial = new THREE.PointsMaterial({
-        color: sceneStates.ag1.color,
-        size: 0.035,
-        sizeAttenuation: true,
-        transparent: true,
-        opacity: 0.72,
-      });
+      const box = (
+        width: number,
+        height: number,
+        depth: number,
+        material: THREE.Material,
+      ) =>
+        new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
 
-      const coreGeometry = new THREE.IcosahedronGeometry(0.82, 2);
-      const core = new THREE.Mesh(coreGeometry, wireMaterial);
-      sculpture.add(core);
+      const sphere = (radius: number, material: THREE.Material) =>
+        new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 18), material);
 
-      const innerGeometry = new THREE.IcosahedronGeometry(0.3, 1);
-      const innerCore = new THREE.Mesh(innerGeometry, accentMaterial);
-      sculpture.add(innerCore);
+      const cylinder = (
+        radius: number,
+        height: number,
+        material: THREE.Material,
+        segments = 24,
+      ) =>
+        new THREE.Mesh(
+          new THREE.CylinderGeometry(radius, radius, height, segments),
+          material,
+        );
 
-      const ringGeometry = new THREE.TorusGeometry(1.38, 0.012, 6, 160);
-      const ringRotations = [
-        new THREE.Euler(0.25, 0.12, 0.08),
-        new THREE.Euler(1.08, 0.5, 0.46),
-        new THREE.Euler(0.72, 1.18, 1.12),
-      ];
-      const rings = ringRotations.map((rotation) => {
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.rotation.copy(rotation);
-        sculpture.add(ring);
-        return ring;
-      });
+      const tube = (
+        points: THREE.Vector3[],
+        radius: number,
+        material: THREE.Material,
+      ) => {
+        const curve = new THREE.CatmullRomCurve3(points);
+        return {
+          curve,
+          mesh: new THREE.Mesh(
+            new THREE.TubeGeometry(curve, 100, radius, 8, false),
+            material,
+          ),
+        };
+      };
 
-      const helixPoints = Array.from({ length: 96 }, (_, index) => {
-        const progress = index / 95;
-        const angle = progress * Math.PI * 5.2;
-        const radius = 1.08 + Math.sin(progress * Math.PI * 4) * 0.18;
+      const platform = box(8.8, 0.16, 3.2, materials.ink);
+      platform.position.y = -1.05;
+      introMachine.add(platform);
+
+      for (let index = 0; index < 11; index += 1) {
+        const mark = box(
+          0.015,
+          0.02,
+          index % 5 === 0 ? 0.5 : 0.26,
+          materials.ivory,
+        );
+        mark.position.set(-4 + index * 0.8, -0.95, 1.58);
+        introMachine.add(mark);
+      }
+
+      const launcher = new THREE.Group();
+      launcher.position.set(-3.62, 0.9, 0);
+      const springPoints = Array.from({ length: 70 }, (_, index) => {
+        const progress = index / 69;
+        const angle = progress * Math.PI * 12;
         return new THREE.Vector3(
-          Math.cos(angle) * radius,
-          (progress - 0.5) * 3.1,
-          Math.sin(angle) * radius,
+          progress * 0.78,
+          Math.sin(angle) * 0.11,
+          Math.cos(angle) * 0.11,
         );
       });
-      const helixCurve = new THREE.CatmullRomCurve3(helixPoints);
-      const ribbonGeometry = new THREE.TubeGeometry(
-        helixCurve,
-        220,
-        0.025,
-        6,
-        false,
+      const spring = tube(springPoints, 0.035, materials.lime).mesh;
+      const plunger = box(0.12, 0.56, 0.48, materials.ivory);
+      plunger.position.x = 0.88;
+      const springScaleForPlunger = (plungerX: number) =>
+        Math.max(0.2, (plungerX - 0.095) / 0.78);
+      launcher.add(spring, plunger);
+      introMachine.add(launcher);
+
+      const lever = new THREE.Group();
+      const leverArm = box(0.12, 1.05, 0.12, materials.ivory);
+      leverArm.position.y = 0.48;
+      const leverKnob = sphere(0.18, materials.orange);
+      leverKnob.position.y = 1.02;
+      lever.add(leverArm, leverKnob);
+      lever.position.set(-3.75, -0.76, 0);
+      introMachine.add(lever);
+
+      const introRail = tube(
+        introMachineLayout.rail.map(
+          (point) => new THREE.Vector3(point.x, point.y, 0),
+        ),
+        0.045,
+        materials.steel,
       );
-      const ribbon = new THREE.Mesh(ribbonGeometry, ribbonMaterial);
-      ribbon.rotation.z = Math.PI / 2;
-      sculpture.add(ribbon);
+      const railTwin = introRail.mesh.clone();
+      introRail.mesh.position.z = -0.2;
+      railTwin.position.z = 0.2;
+      introMachine.add(introRail.mesh, railTwin);
 
-      const nodeGeometry = new THREE.SphereGeometry(0.07, 16, 16);
-      const nodes = new THREE.InstancedMesh(nodeGeometry, accentMaterial, 14);
-      const nodeTransform = new THREE.Object3D();
-      for (let index = 0; index < 14; index += 1) {
-        const angle = (index / 14) * Math.PI * 2;
-        const vertical = Math.sin(index * 1.7) * 0.72;
-        const radius = 1.52 + (index % 3) * 0.1;
-        nodeTransform.position.set(
-          Math.cos(angle) * radius,
-          vertical,
-          Math.sin(angle) * radius,
-        );
-        const scale = index % 4 === 0 ? 1.7 : 0.78;
-        nodeTransform.scale.setScalar(scale);
-        nodeTransform.updateMatrix();
-        nodes.setMatrixAt(index, nodeTransform.matrix);
-      }
-      nodes.instanceMatrix.needsUpdate = true;
-      sculpture.add(nodes);
-
-      const particleCount = 240;
-      const particlePositions = new Float32Array(particleCount * 3);
-      const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-      for (let index = 0; index < particleCount; index += 1) {
-        const y = 1 - (index / (particleCount - 1)) * 2;
-        const radius = Math.sqrt(1 - y * y);
-        const angle = goldenAngle * index;
-        const shell = 1.85 + (index % 7) * 0.055;
-        particlePositions[index * 3] = Math.cos(angle) * radius * shell;
-        particlePositions[index * 3 + 1] = y * shell;
-        particlePositions[index * 3 + 2] = Math.sin(angle) * radius * shell;
-      }
-      const particleGeometry = new THREE.BufferGeometry();
-      particleGeometry.setAttribute(
-        "position",
-        new THREE.BufferAttribute(particlePositions, 3),
+      const limeBall = sphere(0.2, materials.lime);
+      limeBall.position.set(
+        introMachineLayout.marble.start.x,
+        introMachineLayout.marble.start.y,
+        0,
       );
-      const particles = new THREE.Points(particleGeometry, particleMaterial);
-      sculpture.add(particles);
+      introMachine.add(limeBall);
 
-      scene.add(new THREE.AmbientLight("#ffffff", 2.2));
-      const keyLight = new THREE.DirectionalLight("#ffffff", 3.5);
-      keyLight.position.set(3, 5, 7);
-      scene.add(keyLight);
-      const rimLight = new THREE.PointLight(sceneStates.ag1.color, 18, 12);
-      rimLight.position.set(-3, -1, 4);
-      scene.add(rimLight);
+      const dominoes = Array.from(
+        { length: introMachineLayout.dominoes.count },
+        (_, index) => {
+          const pivot = new THREE.Group();
+          const domino = box(
+            introMachineLayout.dominoes.width,
+            introMachineLayout.dominoes.height,
+            0.42,
+            materials.ivory,
+          );
+          domino.position.y = introMachineLayout.dominoes.height / 2;
+          pivot.add(domino);
+          pivot.position.set(
+            introMachineLayout.dominoes.startX +
+              index * introMachineLayout.dominoes.gap,
+            introMachineLayout.floorY + 0.02,
+            0,
+          );
+          introMachine.add(pivot);
+          return pivot;
+        },
+      );
 
-      let motionPaused =
-        window.localStorage.getItem("portfolio-motion-paused") === "true";
-      let idleActive = false;
-      let introActive = document.documentElement.dataset.introState !== "seen";
-      let introRevealing = false;
-      let introProgress = 0;
-      let idleFrame = 0;
-      let renderFrame = 0;
-      let scrollProgress = 0;
-      const tweens = new Set<gsap.core.Animation>();
+      const seesaw = new THREE.Group();
+      const seesawBoard = box(
+        introMachineLayout.seesaw.width,
+        introMachineLayout.seesaw.height,
+        0.48,
+        materials.orange,
+      );
+      const seesawPivot = cylinder(0.2, 0.52, materials.steel, 16);
+      seesawPivot.rotation.x = Math.PI / 2;
+      seesawPivot.position.y = -0.18;
+      seesaw.add(seesawBoard, seesawPivot);
+      seesaw.position.set(
+        introMachineLayout.seesaw.x,
+        introMachineLayout.seesaw.y,
+        0,
+      );
+      introMachine.add(seesaw);
 
-      const render = () => {
-        cancelAnimationFrame(renderFrame);
-        renderFrame = requestAnimationFrame(() =>
-          renderer.render(scene, camera),
+      const orangeBall = sphere(0.19, materials.orange);
+      orangeBall.position.set(
+        introMachineLayout.orangeBall.x,
+        introMachineLayout.orangeBall.y,
+        0,
+      );
+      introMachine.add(orangeBall);
+
+      const enterKey = new THREE.Group();
+      const keyBase = box(
+        introMachineLayout.enterKey.width,
+        introMachineLayout.enterKey.height,
+        0.82,
+        materials.lavender,
+      );
+      const keyTop = box(0.88, 0.12, 0.66, materials.ivory);
+      keyTop.position.y = 0.18;
+      enterKey.add(keyBase, keyTop);
+      enterKey.position.set(
+        introMachineLayout.enterKey.x,
+        introMachineLayout.enterKey.y,
+        0,
+      );
+      introMachine.add(enterKey);
+
+      const chapterCenters = [-5.2, 0, 5.2] as const;
+      const chapterBalls: THREE.Mesh[] = [];
+      const chapterCurves: THREE.CatmullRomCurve3[] = [];
+      const chapterWheels: THREE.Group[] = [];
+      const chapterDominoes: THREE.Mesh[][] = [];
+      const chapterArms: THREE.Group[] = [];
+
+      const connector = tube(
+        [
+          new THREE.Vector3(-7.8, -0.45, 0),
+          new THREE.Vector3(-4.5, 0.62, 0),
+          new THREE.Vector3(-1.8, -0.18, 0),
+          new THREE.Vector3(1.7, 0.52, 0),
+          new THREE.Vector3(4.2, -0.2, 0),
+          new THREE.Vector3(7.8, 0.58, 0),
+        ],
+        0.035,
+        materials.steel,
+      ).mesh;
+      const connectorTwin = connector.clone();
+      connector.position.z = -0.24;
+      connectorTwin.position.z = 0.24;
+      chapterMachine.add(connector, connectorTwin);
+
+      chapterCenters.forEach((center, moduleIndex) => {
+        const group = new THREE.Group();
+        group.position.x = center;
+        const base = box(4.25, 0.14, 2.7, materials.ink);
+        base.position.y = -1.02;
+        group.add(base);
+
+        const accentMaterial = [
+          materials.lime,
+          materials.orange,
+          materials.lavender,
+        ][moduleIndex];
+        const wheel = new THREE.Group();
+        const rim = new THREE.Mesh(
+          new THREE.TorusGeometry(0.72, 0.055, 10, 48),
+          accentMaterial,
         );
-      };
+        const spokeA = box(1.34, 0.055, 0.055, materials.ivory);
+        const spokeB = spokeA.clone();
+        spokeB.rotation.z = Math.PI / 2;
+        wheel.add(rim, spokeA, spokeB);
+        wheel.position.set(-1.25, 0.18, -0.18);
+        group.add(wheel);
 
-      const stopIdle = () => {
-        cancelAnimationFrame(idleFrame);
-        idleFrame = 0;
-      };
+        const curveData = tube(
+          [
+            new THREE.Vector3(-1.85, 0.78, 0.15),
+            new THREE.Vector3(-0.8, 0.98, -0.05),
+            new THREE.Vector3(0.15, 0.32, 0.12),
+            new THREE.Vector3(1.6, -0.12, 0),
+          ],
+          0.04,
+          materials.steel,
+        );
+        const curveTwin = curveData.mesh.clone();
+        curveData.mesh.position.z = -0.18;
+        curveTwin.position.z = 0.18;
+        group.add(curveData.mesh, curveTwin);
 
-      const runIdle = (time: number) => {
-        if ((!idleActive && !introActive) || motionPaused || document.hidden) {
-          stopIdle();
-          return;
-        }
+        const ball = sphere(0.17, accentMaterial);
+        ball.position.copy(curveData.curve.getPoint(0));
+        group.add(ball);
 
-        const seconds = time / 1000;
-        if (introActive) {
-          if (!introRevealing) {
-            const charge = gsap.parseEase("power3.inOut")(introProgress);
-            sculpture.rotation.set(
-              Math.sin(seconds * 0.42) * 0.08 * (1 - charge),
-              seconds * (0.12 + charge * 0.55),
-              Math.cos(seconds * 0.36) * 0.05 * (1 - charge),
-            );
-            rings.forEach((ring, index) => {
-              const base = ringRotations[index];
-              ring.rotation.x = THREE.MathUtils.lerp(
-                base.x,
-                Math.PI / 2,
-                charge,
-              );
-              ring.rotation.y =
-                THREE.MathUtils.lerp(base.y, 0, charge) +
-                seconds * (0.08 + index * 0.025) * (1 + charge * 3);
-              ring.rotation.z = THREE.MathUtils.lerp(base.z, 0, charge);
-            });
-            const particleScale = THREE.MathUtils.lerp(1, 0.52, charge);
-            particles.scale.setScalar(particleScale);
-            const pulse =
-              1 +
-              Math.sin(seconds * (2.2 + charge * 7)) * (0.08 + charge * 0.24);
-            innerCore.scale.setScalar(pulse + charge * 0.34);
-            core.scale.setScalar(1 + charge * 0.14);
-            ribbon.rotation.y = -seconds * (0.1 + charge * 0.65);
-            nodes.rotation.y = seconds * (0.16 + charge * 0.7);
-            camera.position.z = THREE.MathUtils.lerp(6.8, 5.25, charge);
-          }
-          renderer.render(scene, camera);
-          idleFrame = requestAnimationFrame(runIdle);
-          return;
-        }
-
-        sculpture.rotation.x =
-          Math.sin(seconds * 0.28) * 0.13 + scrollProgress * 0.38;
-        sculpture.rotation.y = seconds * 0.09 + scrollProgress * Math.PI * 1.8;
-        sculpture.rotation.z = Math.cos(seconds * 0.2) * 0.09;
-        sculpture.position.y = Math.sin(seconds * 0.44) * 0.09;
-
-        core.rotation.x = seconds * 0.24 + scrollProgress * 1.2;
-        core.rotation.y = -seconds * 0.18;
-        innerCore.rotation.x = -seconds * 0.4;
-        innerCore.rotation.z = seconds * 0.32;
-        const pulse = 1 + Math.sin(seconds * 1.8) * 0.08;
-        innerCore.scale.setScalar(pulse);
-
-        rings.forEach((ring, index) => {
-          const base = ringRotations[index];
-          ring.rotation.x =
-            base.x + Math.sin(seconds * (0.18 + index * 0.04)) * 0.17;
-          ring.rotation.y = base.y + seconds * (index % 2 === 0 ? 0.08 : -0.06);
-          ring.rotation.z = base.z + scrollProgress * (0.7 + index * 0.24);
+        const moduleDominoes = Array.from({ length: 6 }, (_, dominoIndex) => {
+          const domino = box(0.12, 0.64, 0.36, materials.ivory);
+          domino.position.set(0.18 + dominoIndex * 0.27, -0.64, 0.2);
+          group.add(domino);
+          return domino;
         });
 
-        ribbon.rotation.y = -seconds * 0.11 - scrollProgress * 1.5;
-        nodes.rotation.y = seconds * 0.14 + scrollProgress * 2.4;
-        nodes.rotation.z = Math.sin(seconds * 0.31) * 0.14;
-        particles.rotation.y = -seconds * 0.035;
-        particles.rotation.x = scrollProgress * 0.55;
+        const arm = new THREE.Group();
+        const plank = box(1.05, 0.09, 0.42, accentMaterial);
+        const pin = cylinder(0.15, 0.46, materials.steel, 16);
+        pin.rotation.x = Math.PI / 2;
+        pin.position.y = -0.18;
+        arm.add(plank, pin);
+        arm.position.set(1.35, -0.28, 0);
+        group.add(arm);
 
+        if (moduleIndex === 2) {
+          const stampPost = box(0.14, 1.15, 0.14, materials.ivory);
+          stampPost.position.set(1.68, 0.08, 0);
+          const stampHead = box(0.74, 0.2, 0.55, materials.lavender);
+          stampHead.position.set(1.68, 0.62, 0);
+          group.add(stampPost, stampHead);
+          arm.userData.stamp = stampHead;
+        }
+
+        chapterMachine.add(group);
+        chapterBalls.push(ball);
+        chapterCurves.push(curveData.curve);
+        chapterWheels.push(wheel);
+        chapterDominoes.push(moduleDominoes);
+        chapterArms.push(arm);
+      });
+
+      scene.add(new THREE.AmbientLight("#ffffff", 1.65));
+      const keyLight = new THREE.DirectionalLight("#ffffff", 4.2);
+      keyLight.position.set(3, 6, 8);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(1024, 1024);
+      scene.add(keyLight);
+      const limeLight = new THREE.PointLight(palette.lime, 11, 13);
+      limeLight.position.set(-3, 1.5, 4);
+      scene.add(limeLight);
+      const warmLight = new THREE.PointLight(palette.orange, 8, 12);
+      warmLight.position.set(4, 0, 3);
+      scene.add(warmLight);
+
+      scene.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.castShadow = true;
+        object.receiveShadow = true;
+      });
+
+      let introActive = document.documentElement.dataset.introState !== "seen";
+      let machineRunning = false;
+      let motionPaused =
+        window.localStorage.getItem("portfolio-motion-paused") === "true";
+      let activeChapter = -1;
+      let activeProgress = 0;
+      let renderFrame = 0;
+      const animations = new Set<gsap.core.Animation>();
+      const cameraTarget = new THREE.Vector3(0, 0, 0);
+
+      chapterMachine.visible = !introActive;
+      introMachine.visible = introActive;
+      canvas.style.opacity = introActive ? "1" : "0";
+
+      const baseCameraZ = () => (window.innerWidth < 700 ? 13.4 : 10.4);
+      const renderNow = () => {
+        camera.lookAt(cameraTarget);
         renderer.render(scene, camera);
-        idleFrame = requestAnimationFrame(runIdle);
       };
-
-      const startIdle = () => {
-        if (
-          idleFrame ||
-          (!idleActive && !introActive) ||
-          motionPaused ||
-          document.hidden
-        )
-          return;
-        idleFrame = requestAnimationFrame(runIdle);
+      const render = () => {
+        cancelAnimationFrame(renderFrame);
+        renderFrame = requestAnimationFrame(renderNow);
       };
 
       const resize = () => {
@@ -307,300 +425,384 @@ export function ProceduralScene() {
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
         renderer.setSize(width, height, false);
         camera.aspect = width / height;
+        camera.position.z = baseCameraZ();
+        camera.position.x = 0;
+        camera.position.y = 0;
+        cameraTarget.set(0, 0, 0);
         camera.updateProjectionMatrix();
+        if (width < 700) {
+          introMachine.scale.setScalar(0.8);
+          introMachine.position.set(0.45, -0.4, 0);
+        } else {
+          introMachine.scale.setScalar(1);
+          introMachine.position.set(0.15, -0.2, 0);
+        }
         render();
       };
 
-      const animateTo = (name: keyof typeof sceneStates) => {
-        if (motionPaused || introActive) return;
-        const state = sceneStates[name];
-        const color = new THREE.Color(state.color);
-        const timeline = gsap.timeline({
-          onComplete: () => tweens.delete(timeline),
-          onUpdate: render,
+      const setWind = (progress: number) => {
+        const eased = smooth(progress);
+        lever.rotation.z = eased * Math.PI * 1.65;
+        plunger.position.x = 0.88 - eased * 0.32;
+        spring.scale.x = springScaleForPlunger(plunger.position.x);
+        launcher.position.y =
+          0.9 + Math.sin(progress * Math.PI * 18) * eased * 0.012;
+        introRail.mesh.position.y =
+          Math.sin(progress * Math.PI * 16) * eased * 0.012;
+        railTwin.position.y = introRail.mesh.position.y;
+        limeBall.scale.setScalar(1 + eased * 0.08);
+        limeLight.intensity = 11 + eased * 15;
+        render();
+      };
+      const animateCamera = (stage: MachineStage) => {
+        const target = introCameraStages[stage];
+        const mobileDepth = window.innerWidth < 700 ? 3.2 : 0;
+        const positionTween = gsap.to(camera.position, {
+          x: target.x,
+          y: target.y,
+          z: target.z + mobileDepth,
+          duration: stage === "complete" ? 0.32 : 0.58,
+          ease: stage === "complete" ? "power4.in" : "power3.inOut",
+          overwrite: "auto",
+          onUpdate: renderNow,
+          onComplete: () => animations.delete(positionTween),
         });
-        timeline.to(
-          sceneRoot.position,
-          { x: state.x, y: state.y, duration: 1.25, ease: "power3.inOut" },
-          0,
-        );
-        timeline.to(
-          sceneRoot.rotation,
-          {
-            y: state.rotation,
-            z: state.rotation * 0.12,
-            duration: 1.45,
-            ease: "power3.inOut",
-          },
-          0,
-        );
-        timeline.to(
-          sculpture.scale,
-          {
-            x: state.scale,
-            y: state.scale,
-            z: state.scale,
-            duration: 1.35,
-            ease: "power3.inOut",
-          },
-          0,
-        );
-        [accentMaterial, ribbonMaterial, particleMaterial].forEach(
-          (material) => {
-            timeline.to(
-              material.color,
-              {
-                b: color.b,
-                duration: 1,
-                ease: "power2.inOut",
-                g: color.g,
-                r: color.r,
-              },
-              0,
-            );
-          },
-        );
-        timeline.to(
-          rimLight.color,
-          {
-            b: color.b,
-            duration: 1,
-            ease: "power2.inOut",
-            g: color.g,
-            r: color.r,
-          },
-          0,
-        );
-        tweens.add(timeline);
+        const targetTween = gsap.to(cameraTarget, {
+          x: target.x,
+          y: target.y - 0.08,
+          duration: 0.52,
+          ease: "power3.inOut",
+          overwrite: "auto",
+          onUpdate: renderNow,
+          onComplete: () => animations.delete(targetTween),
+        });
+        animations.add(positionTween);
+        animations.add(targetTween);
       };
 
-      const stateTriggers = Array.from(
-        document.querySelectorAll<HTMLElement>("[data-scene]"),
-      )
-        .map((element) => {
-          const name = element.dataset.scene as keyof typeof sceneStates;
-          if (!sceneStates[name]) return null;
-          return ScrollTrigger.create({
-            trigger: element,
-            start: "top 70%",
-            end: "bottom 30%",
-            onEnter: () => animateTo(name),
-            onEnterBack: () => animateTo(name),
-          });
-        })
-        .filter(Boolean) as ScrollTrigger[];
+      const impact = (object: THREE.Object3D, amount = 1.16) => {
+        const tween = gsap.fromTo(
+          object.scale,
+          { x: amount, y: 1 / amount, z: amount },
+          {
+            x: 1,
+            y: 1,
+            z: 1,
+            duration: 0.28,
+            ease: "back.out(2.5)",
+            onUpdate: renderNow,
+            onComplete: () => animations.delete(tween),
+          },
+        );
+        animations.add(tween);
+      };
 
-      const idleTriggers = Array.from(
-        document.querySelectorAll<HTMLElement>("[data-scene-transition]"),
-      ).map((element) =>
+      const machineStage = (stage: MachineStage) => {
+        canvas.dataset.machineStage = stage;
+        dispatchMachineStage(stage);
+        animateCamera(stage);
+
+        if (stage === "marble") {
+          impact(limeBall, 1.22);
+        } else if (stage === "dominoes") {
+          impact(dominoes[0]);
+        } else if (stage === "seesaw") {
+          impact(seesaw, 1.1);
+        } else if (stage === "key") {
+          impact(enterKey, 1.2);
+        } else if (stage === "complete") {
+          dispatchMachineComplete();
+        }
+      };
+
+      const finishIntro = () => {
+        introActive = false;
+        machineRunning = false;
+        introMachine.visible = false;
+        chapterMachine.visible = true;
+        canvas.style.opacity = "0";
+        if (sceneShell) sceneShell.style.visibility = "hidden";
+        camera.position.set(0, 0, baseCameraZ());
+        cameraTarget.set(0, 0, 0);
+        renderNow();
+      };
+
+      const setChapter = (index: number, progress: number) => {
+        if (motionPaused) return;
+        if (
+          index < 0 ||
+          index >= chapterCenters.length ||
+          !chapterCurves[index] ||
+          !chapterBalls[index]
+        )
+          return;
+        activeChapter = index;
+        activeProgress = progress;
+        canvas.dataset.machineChapter = `${index + 1}`;
+        canvas.dataset.machineProgress = progress.toFixed(4);
+        introMachine.visible = false;
+        chapterMachine.visible = true;
+        if (sceneShell) sceneShell.style.visibility = "visible";
+        canvas.style.opacity = "1";
+
+        const center = chapterCenters[index];
+        camera.position.x =
+          center + THREE.MathUtils.lerp(-0.72, 0.72, progress);
+        camera.position.y = Math.sin(progress * Math.PI) * 0.18;
+        camera.position.z = window.innerWidth < 700 ? 12.2 : 8.6;
+        cameraTarget.set(center, -0.05, 0);
+
+        const ballPoint = chapterCurves[index].getPoint(smooth(progress));
+        chapterBalls[index].position.copy(ballPoint);
+        chapterBalls[index].rotation.z = progress * Math.PI * 5;
+        chapterWheels[index].rotation.z = -progress * Math.PI * 3.2;
+        chapterDominoes[index].forEach((domino, dominoIndex) => {
+          const local = smooth((progress - 0.36 - dominoIndex * 0.065) / 0.24);
+          domino.rotation.z = -local * Math.PI * 0.46;
+        });
+        chapterArms[index].rotation.z =
+          -smooth((progress - 0.75) / 0.2) * Math.PI * 0.16;
+        const stamp = chapterArms[index].userData.stamp as
+          THREE.Mesh | undefined;
+        if (stamp) {
+          stamp.position.y = 0.62 - smooth((progress - 0.72) / 0.2) * 0.72;
+        }
+        render();
+      };
+
+      const windEvent = (event: Event) => {
+        if (!introActive || machineRunning) return;
+        const progress = (event as CustomEvent<MachineWindDetail>).detail
+          .progress;
+        setWind(clamp01(progress));
+      };
+
+      const startMachine = (event: Event) => {
+        if (!introActive || machineRunning) return;
+        const detail = (event as CustomEvent<MachineStartDetail>).detail;
+        machineRunning = true;
+
+        if (detail.skipped || detail.reduced) {
+          const tween = gsap.to(canvas, {
+            opacity: 0,
+            duration: 0.34,
+            ease: "power2.out",
+            onComplete: () => {
+              animations.delete(tween);
+              introActive = false;
+              introMachine.visible = false;
+              chapterMachine.visible = true;
+            },
+          });
+          animations.add(tween);
+          return;
+        }
+
+        const railState = { progress: 0 };
+        const throwState = { progress: 0 };
+        const launcherState = { progress: 0 };
+        const sequence = gsap.timeline({
+          defaults: { overwrite: "auto" },
+          onUpdate: renderNow,
+          onComplete: () => animations.delete(sequence),
+        });
+        animations.add(sequence);
+
+        sequence
+          .call(() => machineStage("marble"), [], 0.15)
+          .to(
+            lever.rotation,
+            {
+              z: Math.PI * 2.15,
+              duration: 0.24,
+              ease: "back.out(2)",
+            },
+            0,
+          )
+          .to(
+            launcherState,
+            {
+              progress: 1,
+              duration: 0.17,
+              ease: "power3.inOut",
+              onUpdate: () => {
+                plunger.position.x = THREE.MathUtils.lerp(
+                  0.56,
+                  0.88,
+                  launcherState.progress,
+                );
+                spring.scale.x = springScaleForPlunger(plunger.position.x);
+              },
+            },
+            0,
+          )
+          .to(
+            railState,
+            {
+              progress: 1,
+              duration: 0.62,
+              ease: "power2.in",
+              onUpdate: () => {
+                const point = introRail.curve.getPoint(railState.progress);
+                limeBall.position.copy(point);
+                limeBall.position.y += introMachineLayout.marble.radius;
+                limeBall.rotation.z = -railState.progress * Math.PI * 5;
+              },
+            },
+            0.17,
+          )
+          .call(() => machineStage("dominoes"), [], 0.78);
+
+        dominoes.forEach((domino, index) => {
+          sequence.to(
+            domino.rotation,
+            {
+              z: -Math.PI * 0.47,
+              duration: 0.19,
+              ease: "power2.in",
+            },
+            0.78 + index * 0.09,
+          );
+        });
+
+        sequence
+          .call(() => machineStage("seesaw"), [], 1.48)
+          .to(
+            seesaw.rotation,
+            { z: 0.42, duration: 0.26, ease: "power3.inOut" },
+            1.48,
+          )
+          .to(
+            throwState,
+            {
+              progress: 1,
+              duration: 0.74,
+              ease: "none",
+              onUpdate: () => {
+                const progress = throwState.progress;
+                orangeBall.position.x = THREE.MathUtils.lerp(
+                  introMachineLayout.orangeBall.x,
+                  introMachineLayout.enterKey.x,
+                  progress,
+                );
+                orangeBall.position.y =
+                  THREE.MathUtils.lerp(
+                    introMachineLayout.orangeBall.y,
+                    introMachineLayout.enterKey.y + 0.38,
+                    progress,
+                  ) +
+                  Math.sin(progress * Math.PI) * 1.35;
+                orangeBall.rotation.z = -progress * Math.PI * 6;
+              },
+            },
+            1.54,
+          )
+          .call(() => machineStage("key"), [], 2.28)
+          .to(
+            enterKey.position,
+            {
+              y: introMachineLayout.enterKey.y - 0.14,
+              duration: 0.18,
+              ease: "power3.in",
+            },
+            2.28,
+          )
+          .to(
+            enterKey.scale,
+            {
+              x: 1.14,
+              z: 1.14,
+              duration: 0.2,
+              repeat: 1,
+              yoyo: true,
+              ease: "power2.out",
+            },
+            2.28,
+          )
+          .call(() => machineStage("complete"), [], 2.53);
+      };
+
+      const triggers = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-machine-chapter]"),
+      ).map((element, index) =>
         ScrollTrigger.create({
           trigger: element,
           start: "top bottom",
           end: "bottom top",
-          onEnter: () => {
-            idleActive = true;
-            startIdle();
-          },
-          onEnterBack: () => {
-            idleActive = true;
-            startIdle();
-          },
+          onEnter: () => setChapter(index, 0),
+          onEnterBack: () => setChapter(index, 1),
           onLeave: () => {
-            idleActive = false;
-            stopIdle();
+            if (activeChapter === index) canvas.style.opacity = "0";
           },
           onLeaveBack: () => {
-            idleActive = false;
-            stopIdle();
+            if (activeChapter === index) canvas.style.opacity = "0";
           },
-          onUpdate: (self) => {
-            scrollProgress = self.progress;
-          },
+          onUpdate: (self) => setChapter(index, self.progress),
         }),
       );
-
-      const pointer = (event: PointerEvent) => {
-        if (!idleActive || motionPaused || event.pointerType === "touch")
-          return;
-        const x = (event.clientX / window.innerWidth - 0.5) * 0.24;
-        const y = (event.clientY / window.innerHeight - 0.5) * 0.18;
-        const tween = gsap.to(pointerGroup.rotation, {
-          x: -y,
-          y: x,
-          duration: 0.75,
-          overwrite: "auto",
-          ease: "power2.out",
-          onComplete: () => tweens.delete(tween),
-          onUpdate: render,
-        });
-        tweens.add(tween);
-      };
 
       const motion = (event: Event) => {
         motionPaused = Boolean(
           (event as CustomEvent<{ paused: boolean }>).detail.paused,
         );
-        tweens.forEach((tween) =>
-          motionPaused ? tween.pause() : tween.resume(),
+        if (motionPaused) {
+          cancelAnimationFrame(renderFrame);
+          renderFrame = 0;
+        }
+        animations.forEach((animation) =>
+          motionPaused ? animation.pause() : animation.resume(),
         );
-        if (motionPaused) stopIdle();
-        else startIdle();
+        if (!motionPaused && activeChapter >= 0) {
+          setChapter(activeChapter, activeProgress);
+        }
       };
 
       const visibility = () => {
-        tweens.forEach((tween) =>
-          document.hidden || motionPaused ? tween.pause() : tween.resume(),
+        animations.forEach((animation) =>
+          document.hidden ? animation.pause() : animation.resume(),
         );
-        if (document.hidden || motionPaused) stopIdle();
-        else startIdle();
       };
 
       const contextLost = (event: Event) => {
         event.preventDefault();
         canvas.hidden = true;
-      };
-
-      const introCharge = (event: Event) => {
-        introProgress = Math.max(
-          0,
-          Math.min(
-            1,
-            (event as CustomEvent<IntroProgressDetail>).detail.progress,
-          ),
-        );
-        if (introActive) startIdle();
-      };
-
-      const introReveal = (event: Event) => {
-        if (!introActive) return;
-        const { duration, reduced, skipped } = (
-          event as CustomEvent<IntroRevealDetail>
-        ).detail;
-        introRevealing = true;
-        stopIdle();
-
-        const timeline = gsap.timeline({
-          onComplete: () => {
-            tweens.delete(timeline);
-            introActive = false;
-            introRevealing = false;
-            introProgress = 0;
-            camera.position.set(0, 0, 6.8);
-            sceneRoot.position.set(0, 0, 0);
-            sceneRoot.rotation.set(0, 0, 0);
-            pointerGroup.rotation.set(0, 0, 0);
-            sculpture.position.set(0, 0, 0);
-            sculpture.rotation.set(0, 0, 0);
-            sculpture.scale.setScalar(1);
-            core.scale.setScalar(1);
-            innerCore.scale.setScalar(1);
-            particles.scale.setScalar(1);
-            rings.forEach((ring, index) =>
-              ring.rotation.copy(ringRotations[index]),
-            );
-            render();
-            ScrollTrigger.refresh();
-            startIdle();
-          },
-          onUpdate: render,
-        });
-
-        const finalScale = reduced || skipped ? 1.25 : 5.5;
-        timeline.to(
-          sculpture.scale,
-          {
-            x: finalScale,
-            y: finalScale,
-            z: finalScale,
-            duration,
-            ease: reduced || skipped ? "power2.out" : "power4.in",
-          },
-          0,
-        );
-        timeline.to(
-          camera.position,
-          {
-            z: reduced || skipped ? 6.2 : 2.2,
-            duration,
-            ease: reduced || skipped ? "power2.out" : "power4.in",
-          },
-          0,
-        );
-        timeline.to(
-          innerCore.scale,
-          {
-            x: 2.6,
-            y: 2.6,
-            z: 2.6,
-            duration: Math.min(duration * 0.54, 0.7),
-            ease: "power3.out",
-            yoyo: true,
-            repeat: 1,
-          },
-          0,
-        );
-        timeline.to(
-          particles.scale,
-          {
-            x: 0.12,
-            y: 0.12,
-            z: 0.12,
-            duration: duration * 0.65,
-            ease: "power3.in",
-          },
-          0,
-        );
-        rings.forEach((ring, index) => {
-          timeline.to(
-            ring.rotation,
-            {
-              x: Math.PI / 2,
-              y: Math.PI * (2.4 + index * 0.45),
-              z: 0,
-              duration: duration * 0.88,
-              ease: "power3.in",
-            },
-            0,
-          );
-        });
-        tweens.add(timeline);
+        scopeRef.current
+          ?.closest<HTMLElement>("[data-scene-shell]")
+          ?.removeAttribute("data-webgl");
+        dispatchMachineWebglFailure();
       };
 
       resize();
-      render();
+      if (introActive) dispatchMachineReady();
       window.addEventListener("resize", resize);
-      window.addEventListener("pointermove", pointer, { passive: true });
+      window.addEventListener(introEvents.wind, windEvent);
+      window.addEventListener(introEvents.start, startMachine);
+      window.addEventListener(introEvents.introComplete, finishIntro);
       window.addEventListener("portfolio:motion", motion);
-      window.addEventListener(introEvents.progress, introCharge);
-      window.addEventListener(introEvents.reveal, introReveal);
       document.addEventListener("visibilitychange", visibility);
       canvas.addEventListener("webglcontextlost", contextLost);
-      if (introActive) startIdle();
 
       return () => {
-        cancelAnimationFrame(idleFrame);
         cancelAnimationFrame(renderFrame);
-        stateTriggers.forEach((trigger) => trigger.kill());
-        idleTriggers.forEach((trigger) => trigger.kill());
-        tweens.forEach((tween) => tween.kill());
+        triggers.forEach((trigger) => trigger.kill());
+        animations.forEach((animation) => animation.kill());
         window.removeEventListener("resize", resize);
-        window.removeEventListener("pointermove", pointer);
+        window.removeEventListener(introEvents.wind, windEvent);
+        window.removeEventListener(introEvents.start, startMachine);
+        window.removeEventListener(introEvents.introComplete, finishIntro);
         window.removeEventListener("portfolio:motion", motion);
-        window.removeEventListener(introEvents.progress, introCharge);
-        window.removeEventListener(introEvents.reveal, introReveal);
         document.removeEventListener("visibilitychange", visibility);
         canvas.removeEventListener("webglcontextlost", contextLost);
-        coreGeometry.dispose();
-        innerGeometry.dispose();
-        ringGeometry.dispose();
-        ribbonGeometry.dispose();
-        nodeGeometry.dispose();
-        particleGeometry.dispose();
-        accentMaterial.dispose();
-        ribbonMaterial.dispose();
-        wireMaterial.dispose();
-        ringMaterial.dispose();
-        particleMaterial.dispose();
+        scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          object.geometry.dispose();
+        });
+        Object.values(materials).forEach((material) => material.dispose());
+        scopeRef.current
+          ?.closest<HTMLElement>("[data-scene-shell]")
+          ?.removeAttribute("data-webgl");
+        delete document.documentElement.dataset.machineReady;
+        sceneShell?.style.removeProperty("visibility");
         renderer.dispose();
       };
     },
@@ -609,7 +811,7 @@ export function ProceduralScene() {
 
   return (
     <div className={styles.webgl} ref={scopeRef}>
-      <canvas ref={canvasRef} />
+      <canvas ref={canvasRef} data-machine-canvas />
     </div>
   );
 }

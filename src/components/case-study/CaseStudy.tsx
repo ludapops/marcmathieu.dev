@@ -19,12 +19,7 @@ export function CaseStudy({ project }: { project: Project }) {
   } as CSSProperties;
 
   return (
-    <article
-      className={styles.chapter}
-      data-scene={project.id}
-      id={project.id}
-      style={chapterStyle}
-    >
+    <article className={styles.chapter} id={project.id} style={chapterStyle}>
       <header className={styles.header}>
         <div className={styles.chapterMeta}>
           <span>{project.index}</span>
@@ -32,13 +27,13 @@ export function CaseStudy({ project }: { project: Project }) {
           <span>{project.role}</span>
         </div>
         <p className={styles.kicker}>{project.kicker}</p>
-        <h2 data-motion-reveal>{project.headline}</h2>
-        <p className={styles.summary} data-motion-reveal>
+        <h2 data-motion="heading">{project.headline}</h2>
+        <p className={styles.summary} data-motion="copy">
           {project.summary}
         </p>
       </header>
 
-      <div className={styles.readingZone} data-motion-reveal data-reading-zone>
+      <div className={styles.readingZone} data-motion="copy" data-reading-zone>
         <section>
           <p className={styles.label}>The product problem</p>
           <p className={styles.lead}>{project.problem}</p>
@@ -57,7 +52,7 @@ export function CaseStudy({ project }: { project: Project }) {
       >
         <p className={styles.label}>Selected contributions</p>
         <h3>What I owned and shipped</h3>
-        <ol data-motion-reveal>
+        <ol data-motion="rows">
           {project.contributions.map((contribution, index) => (
             <li key={contribution}>
               <span>{String(index + 1).padStart(2, "0")}</span>
@@ -71,7 +66,7 @@ export function CaseStudy({ project }: { project: Project }) {
         className={styles.evidence}
         aria-label={`${project.shortName}: public evidence`}
       >
-        <div className={styles.evidenceIntro} data-motion-reveal>
+        <div className={styles.evidenceIntro} data-motion="heading">
           <p className={styles.label}>Public evidence</p>
           <h3>The shipped product, in public</h3>
         </div>
@@ -80,7 +75,7 @@ export function CaseStudy({ project }: { project: Project }) {
             <figure key={image.src}>
               <Image
                 alt={image.alt}
-                data-motion-media
+                data-motion="media"
                 height={960}
                 sizes="(max-width: 800px) 100vw, 80vw"
                 src={image.src}
@@ -92,7 +87,7 @@ export function CaseStudy({ project }: { project: Project }) {
         </div>
       </section>
 
-      <footer className={styles.outcome} data-motion-reveal>
+      <footer className={styles.outcome} data-motion="copy">
         <div>
           <p className={styles.label}>Outcome</p>
           <p className={styles.outcomeText}>{project.outcome}</p>

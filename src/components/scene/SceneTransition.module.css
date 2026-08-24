@@ -1,12 +1,17 @@
 .transition {
-  min-height: 78svh;
+  min-height: 92svh;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   padding: var(--page-pad);
   position: relative;
   color: var(--paper);
-  background: #10120f;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(242, 239, 231, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(242, 239, 231, 0.022) 1px, transparent 1px),
+    #0b0c0a;
+  background-size: 4rem 4rem;
 }
 
 .transition p {

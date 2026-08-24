@@ -1,35 +1,85 @@
-export const INTRO_STORAGE_KEY = "marc-portfolio-intro-v1";
+export const INTRO_STORAGE_KEY = "marc-portfolio-machine-intro-v3";
+export const INTRO_EVERY_LOAD = process.env.NODE_ENV === "development";
 export const INTRO_HOLD_MS = 900;
 export const INTRO_RESET_MS = 250;
-export const INTRO_REVEAL_MS = 1600;
+export const MACHINE_WATCHDOG_MS = 4500;
+
+export const machineStages = [
+  "marble",
+  "dominoes",
+  "seesaw",
+  "key",
+  "complete",
+] as const;
+
+export type MachineStage = (typeof machineStages)[number];
+
+export function shouldShowIntro({
+  alwaysShow,
+  documentState,
+  hasSeen,
+}: {
+  alwaysShow: boolean;
+  documentState: string | undefined;
+  hasSeen: boolean;
+}) {
+  return alwaysShow || (documentState !== "seen" && !hasSeen);
+}
 
 export const introEvents = {
-  progress: "portfolio:intro-progress",
-  reveal: "portfolio:intro-reveal",
-  complete: "portfolio:intro-complete",
+  ready: "portfolio:machine-ready",
+  wind: "portfolio:machine-wind",
+  start: "portfolio:machine-start",
+  stage: "portfolio:machine-stage",
+  complete: "portfolio:machine-complete",
+  failed: "portfolio:machine-failed",
+  introComplete: "portfolio:intro-complete",
+  webglFailed: "portfolio:machine-webgl-failed",
 } as const;
 
-export type IntroProgressDetail = { progress: number };
-export type IntroRevealDetail = {
-  duration: number;
-  reduced: boolean;
-  skipped: boolean;
-};
+export type MachineWindDetail = { progress: number };
+export type MachineStartDetail = { skipped: boolean; reduced: boolean };
+export type MachineStageDetail = { stage: MachineStage };
 
-export function dispatchIntroProgress(progress: number) {
+export function dispatchMachineReady() {
+  document.documentElement.dataset.machineReady = "true";
+  window.dispatchEvent(new CustomEvent(introEvents.ready));
+}
+
+export function dispatchMachineWind(progress: number) {
   window.dispatchEvent(
-    new CustomEvent<IntroProgressDetail>(introEvents.progress, {
+    new CustomEvent<MachineWindDetail>(introEvents.wind, {
       detail: { progress },
     }),
   );
 }
 
-export function dispatchIntroReveal(detail: IntroRevealDetail) {
+export function dispatchMachineStart(detail: MachineStartDetail) {
   window.dispatchEvent(
-    new CustomEvent<IntroRevealDetail>(introEvents.reveal, { detail }),
+    new CustomEvent<MachineStartDetail>(introEvents.start, { detail }),
   );
 }
 
-export function dispatchIntroComplete() {
+export function dispatchMachineStage(stage: MachineStage) {
+  window.dispatchEvent(
+    new CustomEvent<MachineStageDetail>(introEvents.stage, {
+      detail: { stage },
+    }),
+  );
+}
+
+export function dispatchMachineComplete() {
   window.dispatchEvent(new CustomEvent(introEvents.complete));
+}
+
+export function dispatchMachineFailure() {
+  window.dispatchEvent(new CustomEvent(introEvents.failed));
+}
+
+export function dispatchMachineWebglFailure() {
+  window.dispatchEvent(new CustomEvent(introEvents.webglFailed));
+}
+
+export function dispatchIntroComplete() {
+  window.dispatchEvent(new CustomEvent(introEvents.introComplete));
 }

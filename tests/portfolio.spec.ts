@@ -21,12 +21,16 @@ test("locks the portfolio behind an accessible first-session entry", async ({
     page.getByRole("dialog", { name: "Portfolio introduction" }),
   ).toBeVisible();
   await expect(page.getByText("Portfolio / 2026")).toBeVisible();
+  await expect(page.getByText("Marc Mathieu", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Marc Mathieu" }),
+    page.getByRole("button", { name: "Hold to wind" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Hold to enter" }),
+    page.getByRole("button", { name: "Hold to wind" }),
   ).toBeFocused();
+  await expect(
+    page.getByRole("progressbar", { name: "Machine winding progress" }),
+  ).toHaveAttribute("aria-valuenow", "0");
   await expect
     .poll(() =>
       page
@@ -43,7 +47,10 @@ test("locks the portfolio behind an accessible first-session entry", async ({
 });
 
 test("resets incomplete and cancelled pointer holds", async ({ page }) => {
-  const enter = page.locator("[data-intro-controls] button").first();
+  await expect(
+    page.getByRole("button", { name: "Hold to wind" }),
+  ).toBeVisible();
+  const enter = page.locator("[data-machine-control] button").first();
   const box = await enter.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
@@ -51,7 +58,7 @@ test("resets incomplete and cancelled pointer holds", async ({ page }) => {
   await page.waitForTimeout(320);
   await page.mouse.up();
   await page.waitForTimeout(320);
-  await expect(enter).toHaveText(/Hold to enter/);
+  await expect(enter).toHaveText(/Hold to wind/);
   await expect(splash(page)).toBeVisible();
 
   await enter.dispatchEvent("pointerdown", {
@@ -65,15 +72,27 @@ test("resets incomplete and cancelled pointer holds", async ({ page }) => {
     pointerType: "touch",
   });
   await page.waitForTimeout(320);
-  await expect(enter).toHaveText(/Hold to enter/);
+  await expect(enter).toHaveText(/Hold to wind/);
 });
 
-test("charges the sculpture and enters on pointer release", async ({
+test("auto-launches the machine at full wind and enters after the key impact", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "WebGL progress check");
-  const enter = page.getByRole("button", { name: "Hold to enter" });
+  await page.evaluate(() => {
+    const stages: string[] = [];
+    (window as Window & { __machineStages?: string[] }).__machineStages =
+      stages;
+    window.addEventListener("portfolio:machine-stage", (event) => {
+      stages.push((event as CustomEvent<{ stage: string }>).detail.stage);
+    });
+  });
+  const enter = page.getByRole("button", { name: "Hold to wind" });
   const canvas = page.locator("canvas");
+  await expect(page.locator('[data-motion="hero"]').first()).toHaveCSS(
+    "clip-path",
+    "inset(0px 0px 100%)",
+  );
   await expect(canvas).toHaveCount(1);
   const before = await canvas.screenshot();
   const box = await enter.boundingBox();
@@ -82,12 +101,40 @@ test("charges the sculpture and enters on pointer release", async ({
   await page.mouse.down();
   await page.waitForTimeout(960);
   await expect(
-    page.getByRole("button", { name: "Release to enter" }),
+    page.getByRole("button", { name: "Machine running" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("progressbar", { name: "Machine winding progress" }),
+  ).toHaveAttribute("aria-valuenow", "100");
   const charged = await canvas.screenshot();
   expect(before.equals(charged)).toBe(false);
+  await expect(canvas).toHaveAttribute(
+    "data-machine-stage",
+    /marble|dominoes|seesaw|key|complete/,
+  );
+  await expect(canvas).toHaveAttribute("data-machine-stage", "complete", {
+    timeout: 4_500,
+  });
+  await expect(page.locator("[data-intro-handoff]")).toBeVisible();
+  await expect(splash(page)).toBeHidden({ timeout: 6_500 });
+  await expect(page.locator('[data-motion="hero"]').first()).toHaveCSS(
+    "clip-path",
+    "none",
+    { timeout: 2_500 },
+  );
+  await expect(page.locator("[data-scene-shell]")).toHaveCSS(
+    "visibility",
+    "hidden",
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { __machineStages?: string[] }).__machineStages,
+      ),
+    )
+    .toEqual(["marble", "dominoes", "seesaw", "key", "complete"]);
   await page.mouse.up();
-  await expect(splash(page)).toBeHidden({ timeout: 3_000 });
   await expect(page.locator("[data-experience-content]")).not.toHaveJSProperty(
     "inert",
     true,
@@ -96,7 +143,10 @@ test("charges the sculpture and enters on pointer release", async ({
 
 test("supports a continuous touch hold", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Touch-path coverage");
-  const enter = page.locator("[data-intro-controls] button").first();
+  await expect(
+    page.getByRole("button", { name: "Hold to wind" }),
+  ).toBeVisible();
+  const enter = page.locator("[data-machine-control] button").first();
   await enter.dispatchEvent("pointerdown", {
     pointerId: 23,
     pointerType: "touch",
@@ -104,39 +154,30 @@ test("supports a continuous touch hold", async ({ page }, testInfo) => {
   });
   await page.waitForTimeout(960);
   await expect(
-    page.getByRole("button", { name: "Release to enter" }),
+    page.getByRole("button", { name: "Machine running" }),
   ).toBeVisible();
-  await enter.dispatchEvent("pointerup", {
-    pointerId: 23,
-    pointerType: "touch",
-    button: 0,
-  });
-  await expect(splash(page)).toBeHidden({ timeout: 3_000 });
+  await expect(splash(page)).toBeHidden({ timeout: 6_500 });
 });
 
-test("supports keyboard holds, Escape, and session bypass", async ({
+test("supports keyboard holds, Escape, and development reloads", async ({
   page,
 }) => {
   await expect(
-    page.getByRole("button", { name: "Hold to enter" }),
+    page.getByRole("button", { name: "Hold to wind" }),
   ).toBeFocused();
   await page.keyboard.down("Enter");
   await page.waitForTimeout(960);
   await expect(
-    page.getByRole("button", { name: "Release to enter" }),
+    page.getByRole("button", { name: "Machine running" }),
   ).toBeVisible();
   await page.keyboard.up("Enter");
-  await expect(splash(page)).toBeHidden({ timeout: 3_000 });
+  await expect(splash(page)).toBeHidden({ timeout: 6_500 });
   await expect(page.locator("#main-content")).toBeFocused();
 
   await page.reload();
-  await expect(splash(page)).toBeHidden();
-
-  await page.evaluate(() => sessionStorage.clear());
-  await page.reload();
   await expect(splash(page)).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Hold to enter" }),
+    page.getByRole("button", { name: "Hold to wind" }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(splash(page)).toBeHidden();
@@ -205,6 +246,61 @@ test("uses the static scene for reduced motion", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("falls back to a static entrance when WebGL is unavailable", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const prototype = HTMLCanvasElement.prototype as unknown as {
+      getContext: (...args: unknown[]) => unknown;
+    };
+    const original = prototype.getContext;
+    prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: unknown,
+      ...args: unknown[]
+    ) {
+      if (type === "webgl" || type === "webgl2") return null;
+      return original.call(this, type, ...args);
+    };
+  });
+  await page.evaluate(() => sessionStorage.clear());
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Enter portfolio" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Enter portfolio" }).click();
+  await expect(splash(page)).toBeHidden();
+});
+
+test("falls back to a static entrance when the machine cannot initialize", async ({
+  page,
+}) => {
+  await expect(
+    page.getByRole("button", { name: "Hold to wind" }),
+  ).toBeVisible();
+  await page.evaluate(() =>
+    window.dispatchEvent(new CustomEvent("portfolio:machine-failed")),
+  );
+  await expect(
+    page.getByRole("button", { name: "Enter portfolio" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Enter portfolio" }).click();
+  await expect(splash(page)).toBeHidden();
+});
+
+test("exposes the server-rendered portfolio without JavaScript", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto("http://127.0.0.1:3000/");
+  await expect(splash(page)).toBeHidden();
+  await expect(
+    page.getByRole("heading", { name: /Complex products/i, level: 1 }),
+  ).toBeVisible();
+  await context.close();
+});
+
 test("persists the visitor's motion choice", async ({ page }) => {
   await dismissIntro(page);
   await expect(page.locator("canvas")).toHaveCount(1);
@@ -221,30 +317,56 @@ test("persists the visitor's motion choice", async ({ page }) => {
   ).toHaveAttribute("aria-pressed", "true");
 });
 
-test("animates only while a project transition is visible", async ({
+test("scrubs connected machine chapters and Pause Motion freezes them", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "WebGL motion check");
 
   await dismissIntro(page);
 
-  await page
-    .getByRole("region", { name: "AG1", exact: true })
-    .scrollIntoViewIfNeeded();
-  await page.waitForTimeout(1_800);
+  const transition = page.getByRole("region", { name: "AG1", exact: true });
+  const bounds = await transition.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top + window.scrollY, height: rect.height };
+  });
+  await page.evaluate((top) => window.scrollTo(0, top), bounds.top);
+  await page.waitForTimeout(250);
 
   const canvas = page.locator("canvas");
-  const movingFrameA = await canvas.screenshot();
-  await page.waitForTimeout(450);
-  const movingFrameB = await canvas.screenshot();
-  expect(movingFrameA.equals(movingFrameB)).toBe(false);
+  await expect(canvas).toHaveAttribute("data-machine-chapter", "1");
+  const movingFrameA = await canvas.getAttribute("data-machine-progress");
+  await page.evaluate(
+    ({ top, height }) => window.scrollTo(0, top + height * 0.45),
+    bounds,
+  );
+  await page.waitForTimeout(250);
+  const movingFrameB = await canvas.getAttribute("data-machine-progress");
+  expect(movingFrameA).not.toBe(movingFrameB);
 
   await page.getByRole("button", { name: "Pause motion" }).click();
-  await page.waitForTimeout(150);
-  const pausedFrameA = await canvas.screenshot();
-  await page.waitForTimeout(450);
-  const pausedFrameB = await canvas.screenshot();
-  expect(pausedFrameA.equals(pausedFrameB)).toBe(true);
+  await page.waitForTimeout(100);
+  const pausedFrameA = await canvas.getAttribute("data-machine-progress");
+  await page.evaluate(
+    ({ top, height }) => window.scrollTo(0, top + height * 0.7),
+    bounds,
+  );
+  await page.waitForTimeout(250);
+  const pausedFrameB = await canvas.getAttribute("data-machine-progress");
+  expect(pausedFrameA).toBe(pausedFrameB);
+});
+
+test("uses varied content motion without scroll blur", async ({ page }) => {
+  await dismissIntro(page);
+  const filters = await page
+    .locator("[data-motion]")
+    .evaluateAll((elements) =>
+      elements.map((element) => getComputedStyle(element).filter),
+    );
+  expect(filters.every((filter) => filter === "none")).toBe(true);
+  await expect(page.locator('[data-motion="heading"]')).not.toHaveCount(0);
+  await expect(page.locator('[data-motion="copy"]')).not.toHaveCount(0);
+  await expect(page.locator('[data-motion="rows"]')).not.toHaveCount(0);
+  await expect(page.locator('[data-motion="media"]')).not.toHaveCount(0);
 });
 
 test("@visual desktop narrative", async ({ page }, testInfo) => {
@@ -272,7 +394,6 @@ test("@visual desktop splash", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "Desktop splash baseline");
   await expect(page.getByText("Portfolio / 2026")).toBeVisible();
   await expect(page.locator("canvas")).toHaveCount(1);
-  await page.addStyleTag({ content: "[data-scene-shell] canvas{opacity:0}" });
   await page.waitForTimeout(300);
   await expect(page).toHaveScreenshot("splash-desktop.png", {
     animations: "disabled",
@@ -284,9 +405,26 @@ test("@visual mobile splash", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Mobile splash baseline");
   await expect(page.getByText("Portfolio / 2026")).toBeVisible();
   await expect(page.locator("canvas")).toHaveCount(1);
-  await page.addStyleTag({ content: "[data-scene-shell] canvas{opacity:0}" });
   await page.waitForTimeout(300);
   await expect(page).toHaveScreenshot("splash-mobile.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+test("@visual project machine transition", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Machine chapter baseline");
+  await dismissIntro(page);
+  const transition = page.getByRole("region", { name: "AG1", exact: true });
+  const bounds = await transition.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top + window.scrollY, height: rect.height };
+  });
+  await page.evaluate((top) => window.scrollTo(0, top), bounds.top);
+  await page.waitForTimeout(250);
+  await page.getByRole("button", { name: "Pause motion" }).click();
+  await page.waitForTimeout(150);
+  await expect(page).toHaveScreenshot("machine-transition.png", {
     animations: "disabled",
     maxDiffPixelRatio: 0.001,
   });

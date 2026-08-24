@@ -3,11 +3,12 @@
 import gsap from "gsap";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  dispatchIntroProgress,
-  dispatchIntroReveal,
+  dispatchMachineStart,
+  dispatchMachineWind,
+  introEvents,
   INTRO_HOLD_MS,
   INTRO_RESET_MS,
-  INTRO_REVEAL_MS,
+  MACHINE_WATCHDOG_MS,
 } from "./intro-events";
 import styles from "./SplashGate.module.css";
 
@@ -16,154 +17,250 @@ type SplashGateProps = {
   onComplete: (restoreFocus: boolean) => void;
 };
 
-type Phase = "idle" | "charging" | "ready" | "revealing";
+type Phase = "idle" | "winding" | "running";
 
 export function SplashGate({ active, onComplete }: SplashGateProps) {
   const scopeRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const progressRef = useRef<HTMLSpanElement>(null);
   const frameRef = useRef(0);
+  const watchdogRef = useRef(0);
+  const completionRef = useRef(0);
+  const pointerIdRef = useRef<number | null>(null);
   const startRef = useRef(0);
-  const progressRef = useRef(0);
-  const chargedRef = useRef(false);
-  const keyboardRef = useRef(false);
-  const revealingRef = useRef(false);
+  const windRef = useRef(0);
   const phaseRef = useRef<Phase>("idle");
+  const keyboardRef = useRef(false);
+  const restoreFocusRef = useRef(false);
+  const completedRef = useRef(false);
   const resetTweenRef = useRef<gsap.core.Tween | null>(null);
+  const introTweenRef = useRef<gsap.core.Tween | null>(null);
   const revealTimelineRef = useRef<gsap.core.Timeline | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
+  const [ready, setReady] = useState(false);
   const [reduced, setReduced] = useState(false);
+  const [machineFailed, setMachineFailed] = useState(false);
+  const staticMode = reduced || machineFailed;
 
-  const writeProgress = useCallback((progress: number) => {
-    progressRef.current = progress;
-    scopeRef.current?.style.setProperty("--intro-progress", `${progress}`);
-    dispatchIntroProgress(progress);
+  const writeWind = useCallback((progress: number) => {
+    windRef.current = progress;
+    scopeRef.current?.style.setProperty("--machine-wind", `${progress}`);
+    progressRef.current?.setAttribute(
+      "aria-valuenow",
+      `${Math.round(progress * 100)}`,
+    );
+    dispatchMachineWind(progress);
   }, []);
 
   const reset = useCallback(() => {
+    if (phaseRef.current === "running") return;
     cancelAnimationFrame(frameRef.current);
-    chargedRef.current = false;
     phaseRef.current = "idle";
     setPhase("idle");
-    const state = { value: progressRef.current };
+    const state = { value: windRef.current };
     resetTweenRef.current?.kill();
     resetTweenRef.current = gsap.to(state, {
       value: 0,
       duration: INTRO_RESET_MS / 1000,
       ease: "power2.out",
       overwrite: true,
-      onUpdate: () => writeProgress(state.value),
+      onUpdate: () => writeWind(state.value),
     });
-  }, [writeProgress]);
+  }, [writeWind]);
 
   const reveal = useCallback(
     (skipped: boolean, restoreFocus: boolean) => {
-      if (revealingRef.current) return;
-      revealingRef.current = true;
-      phaseRef.current = "revealing";
+      window.clearTimeout(watchdogRef.current);
       cancelAnimationFrame(frameRef.current);
       resetTweenRef.current?.kill();
-      setPhase("revealing");
+      introTweenRef.current?.kill();
 
-      const duration = reduced || skipped ? 0.34 : INTRO_REVEAL_MS / 1000;
-      dispatchIntroReveal({
-        duration,
-        reduced,
-        skipped,
-      });
+      if (phaseRef.current !== "running") {
+        phaseRef.current = "running";
+        setPhase("running");
+        dispatchMachineStart({
+          skipped,
+          reduced: staticMode,
+        });
+      }
 
       const root = scopeRef.current;
       const backdrop = document.querySelector<HTMLElement>(
         "[data-intro-backdrop]",
       );
-      const timeline = gsap.timeline({
-        onComplete: () => onComplete(restoreFocus),
-      });
+      const canvas = document.querySelector<HTMLElement>(
+        "[data-machine-canvas]",
+      );
+      const sceneShell =
+        document.querySelector<HTMLElement>("[data-scene-shell]");
+      const content = document.querySelector<HTMLElement>(
+        "[data-experience-content]",
+      );
+      const handoff = root?.querySelector<HTMLElement>("[data-intro-handoff]");
+      const handoffOrb = root?.querySelector<HTMLElement>(
+        "[data-intro-handoff-orb]",
+      );
+      const complete = () => {
+        if (completedRef.current) return;
+        completedRef.current = true;
+        window.clearTimeout(completionRef.current);
+        onComplete(restoreFocus);
+      };
+      const timeline = gsap.timeline({ onComplete: complete });
       revealTimelineRef.current = timeline;
+      completionRef.current = window.setTimeout(
+        complete,
+        staticMode || skipped ? 500 : 1650,
+      );
 
-      if (reduced || skipped) {
+      if (staticMode || skipped) {
         timeline.to([root, backdrop], {
           autoAlpha: 0,
-          duration,
+          duration: 0.34,
           ease: "power2.out",
         });
         return;
       }
 
+      if (!handoff || !handoffOrb || !content) {
+        timeline.to([root, backdrop], {
+          autoAlpha: 0,
+          duration: 0.5,
+          ease: "power2.out",
+        });
+        return;
+      }
+
+      gsap.set(content, { opacity: 0, y: 18 });
+      gsap.set(handoff, { autoAlpha: 1 });
+      gsap.set(handoffOrb, {
+        opacity: 1,
+        scale: 0.002,
+        xPercent: -50,
+        yPercent: -50,
+      });
+
       timeline
         .to(
-          "[data-intro-meta]",
-          { opacity: 0, y: -18, duration: 0.38, ease: "power2.in" },
+          "[data-machine-copy]",
+          { opacity: 0, y: -10, duration: 0.22, ease: "power2.in" },
           0,
         )
         .to(
-          "[data-intro-name='marc']",
-          { xPercent: -118, rotate: -3, duration: 0.92, ease: "power4.in" },
-          0.16,
-        )
-        .to(
-          "[data-intro-name='mathieu']",
-          { xPercent: 118, rotate: 3, duration: 0.92, ease: "power4.in" },
-          0.16,
-        )
-        .to(
-          "[data-intro-controls]",
-          { opacity: 0, scale: 0.92, duration: 0.46, ease: "power2.in" },
-          0.2,
-        )
-        .to(
-          backdrop,
+          handoffOrb,
           {
-            clipPath: "circle(0% at 50% 50%)",
-            duration: 0.72,
+            scale: 1,
+            duration: 0.74,
             ease: "power4.inOut",
           },
-          0.86,
+          0,
         )
-        .to(root, { autoAlpha: 0, duration: 0.18 }, 1.4);
+        .set([backdrop, canvas], { opacity: 0 }, 0.7)
+        .set(sceneShell, { visibility: "hidden" }, 0.7)
+        .to(
+          handoffOrb,
+          { opacity: 0, duration: 0.48, ease: "power2.out" },
+          0.72,
+        )
+        .to(
+          content,
+          { opacity: 1, y: 0, duration: 0.56, ease: "power3.out" },
+          0.72,
+        );
     },
-    [onComplete, reduced],
+    [onComplete, staticMode],
   );
 
-  const charge = useCallback(() => {
-    if (!active || reduced || phaseRef.current === "revealing") return;
-    cancelAnimationFrame(frameRef.current);
-    resetTweenRef.current?.kill();
-    startRef.current = performance.now() - progressRef.current * INTRO_HOLD_MS;
-    chargedRef.current = false;
-    phaseRef.current = "charging";
-    setPhase("charging");
-
-    const tick = (now: number) => {
-      const progress = Math.min((now - startRef.current) / INTRO_HOLD_MS, 1);
-      writeProgress(progress);
-      if (progress >= 1) {
-        chargedRef.current = true;
-        phaseRef.current = "ready";
-        setPhase("ready");
-        return;
-      }
-      frameRef.current = requestAnimationFrame(tick);
-    };
-    frameRef.current = requestAnimationFrame(tick);
-  }, [active, reduced, writeProgress]);
-
-  const release = useCallback(
+  const startMachine = useCallback(
     (restoreFocus: boolean) => {
-      if (phaseRef.current !== "charging" && phaseRef.current !== "ready")
-        return;
-      if (chargedRef.current) reveal(false, restoreFocus);
-      else reset();
+      if (phaseRef.current === "running") return;
+      phaseRef.current = "running";
+      setPhase("running");
+      restoreFocusRef.current = restoreFocus;
+      cancelAnimationFrame(frameRef.current);
+      resetTweenRef.current?.kill();
+      writeWind(1);
+
+      if (pointerIdRef.current !== null) {
+        try {
+          buttonRef.current?.releasePointerCapture(pointerIdRef.current);
+        } catch {
+          // The browser may already have released capture.
+        }
+        pointerIdRef.current = null;
+      }
+
+      dispatchMachineStart({ skipped: false, reduced: false });
+      introTweenRef.current = gsap.to("[data-machine-control]", {
+        opacity: 0,
+        y: 14,
+        duration: 0.32,
+        ease: "power2.in",
+        pointerEvents: "none",
+      });
+      gsap.to("[data-machine-copy]", {
+        opacity: 0.42,
+        duration: 0.45,
+        ease: "power2.out",
+      });
+
+      watchdogRef.current = window.setTimeout(
+        () => reveal(false, restoreFocusRef.current),
+        MACHINE_WATCHDOG_MS - 700,
+      );
     },
-    [reset, reveal],
+    [reveal, writeWind],
   );
+
+  const wind = useCallback(
+    (restoreFocus: boolean) => {
+      if (!active || !ready || staticMode || phaseRef.current === "running")
+        return;
+      cancelAnimationFrame(frameRef.current);
+      resetTweenRef.current?.kill();
+      startRef.current = performance.now() - windRef.current * INTRO_HOLD_MS;
+      phaseRef.current = "winding";
+      setPhase("winding");
+
+      const tick = (now: number) => {
+        const progress = Math.min((now - startRef.current) / INTRO_HOLD_MS, 1);
+        writeWind(progress);
+        if (progress >= 1) {
+          startMachine(restoreFocus);
+          return;
+        }
+        frameRef.current = requestAnimationFrame(tick);
+      };
+      frameRef.current = requestAnimationFrame(tick);
+    },
+    [active, ready, startMachine, staticMode, writeWind],
+  );
+
+  const release = useCallback(() => {
+    if (phaseRef.current === "winding") reset();
+  }, [reset]);
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
+    const updateMotion = () => setReduced(query.matches);
+    const machineReady = () => setReady(true);
+    const machineFailure = () => setMachineFailed(true);
+    const machineComplete = () => reveal(false, restoreFocusRef.current);
+
+    updateMotion();
+    query.addEventListener("change", updateMotion);
+    window.addEventListener(introEvents.ready, machineReady);
+    window.addEventListener(introEvents.complete, machineComplete);
+    window.addEventListener(introEvents.failed, machineFailure);
+    window.addEventListener(introEvents.webglFailed, machineFailure);
+    return () => {
+      query.removeEventListener("change", updateMotion);
+      window.removeEventListener(introEvents.ready, machineReady);
+      window.removeEventListener(introEvents.complete, machineComplete);
+      window.removeEventListener(introEvents.failed, machineFailure);
+      window.removeEventListener(introEvents.webglFailed, machineFailure);
+    };
+  }, [reveal]);
 
   useEffect(() => {
     if (!active) return;
@@ -175,18 +272,18 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
         reveal(true, true);
         return;
       }
-      if (reduced || (event.key !== " " && event.key !== "Enter")) return;
+      if (staticMode || (event.key !== " " && event.key !== "Enter")) return;
       event.preventDefault();
       if (!event.repeat) {
         keyboardRef.current = true;
-        charge();
+        wind(true);
       }
     };
     const keyUp = (event: KeyboardEvent) => {
-      if (reduced || (event.key !== " " && event.key !== "Enter")) return;
+      if (staticMode || (event.key !== " " && event.key !== "Enter")) return;
       event.preventDefault();
       keyboardRef.current = false;
-      release(true);
+      release();
     };
     const blur = () => {
       if (keyboardRef.current) reset();
@@ -201,72 +298,106 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       window.removeEventListener("keyup", keyUp);
       window.removeEventListener("blur", blur);
     };
-  }, [active, charge, reduced, release, reset, reveal]);
+  }, [active, release, reset, reveal, staticMode, wind]);
 
   useEffect(
     () => () => {
       cancelAnimationFrame(frameRef.current);
+      window.clearTimeout(watchdogRef.current);
+      window.clearTimeout(completionRef.current);
       resetTweenRef.current?.kill();
+      introTweenRef.current?.kill();
       revealTimelineRef.current?.kill();
     },
     [],
   );
 
   const label =
-    phase === "ready"
-      ? "Release to enter"
-      : phase === "charging"
-        ? "Keep holding"
-        : "Hold to enter";
+    phase === "winding"
+      ? "Keep winding"
+      : phase === "running"
+        ? "Machine running"
+        : staticMode
+          ? "Enter portfolio"
+          : ready
+            ? "Hold to wind"
+            : "Preparing machine";
 
   return (
     <div
       className={styles.splash}
       data-intro-splash
       data-phase={phase}
+      data-machine-ready={ready || staticMode ? "true" : "false"}
       ref={scopeRef}
       role="dialog"
       aria-modal="true"
       aria-label="Portfolio introduction"
     >
-      <div className={styles.meta} data-intro-meta>
+      <div className={styles.meta} data-machine-copy>
         <span>Portfolio / 2026</span>
         <span>Senior frontend engineer</span>
       </div>
 
-      <h1 className={styles.name} aria-label="Marc Mathieu">
-        <span data-intro-name="marc">Marc</span>
-        <span data-intro-name="mathieu">Mathieu</span>
-      </h1>
+      <div className={styles.identity} data-machine-copy>
+        <p>Marc Mathieu</p>
+        <span>Designing the interface layer</span>
+      </div>
 
-      <div className={styles.controls} data-intro-controls>
+      <div className={styles.machineLabel} data-machine-copy aria-hidden="true">
+        <span>Wind</span>
+        <i />
+        <span>Cascade</span>
+        <i />
+        <span>Enter</span>
+      </div>
+
+      <div className={styles.handoff} data-intro-handoff aria-hidden="true">
+        <span className={styles.handoffOrb} data-intro-handoff-orb />
+      </div>
+
+      <div className={styles.controls} data-machine-control>
         <button
           className={styles.enter}
           type="button"
           ref={buttonRef}
-          onClick={() => reduced && reveal(false, true)}
+          aria-disabled={!ready && !staticMode}
+          onClick={() => staticMode && reveal(false, true)}
           onPointerDown={(event) => {
-            if (reduced || event.button !== 0) return;
+            if (staticMode || event.button !== 0) return;
+            pointerIdRef.current = event.pointerId;
             try {
               event.currentTarget.setPointerCapture(event.pointerId);
             } catch {
-              // Synthetic and assistive pointer events may not own capture.
+              // Synthetic pointer events may not own capture.
             }
-            charge();
+            wind(false);
           }}
-          onPointerUp={() => release(false)}
-          onPointerCancel={() => reset()}
-          aria-describedby="intro-progress-label"
+          onPointerUp={release}
+          onPointerCancel={reset}
+          aria-describedby="machine-status"
         >
-          <span className={styles.progress} aria-hidden="true">
+          <span
+            className={styles.progress}
+            ref={progressRef}
+            role="progressbar"
+            aria-label="Machine winding progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={0}
+          >
             <i />
           </span>
-          <span id="intro-progress-label">
-            {reduced ? "Enter portfolio" : label}
-          </span>
+          <span>{label}</span>
         </button>
-        <span className={styles.counter} aria-live="polite">
-          {phase === "ready" ? "Ready" : "Hold for 0.9 seconds"}
+        <span className={styles.counter} id="machine-status" aria-live="polite">
+          {phase === "running"
+            ? "Chain reaction in progress"
+            : staticMode
+              ? "Static entrance"
+              : ready
+                ? "Wind for 0.9 seconds"
+                : "Setting the machine"}
         </span>
         <button
           className={styles.skip}

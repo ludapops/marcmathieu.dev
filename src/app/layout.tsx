@@ -45,6 +45,11 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const introStateScript =
+    process.env.NODE_ENV === "development"
+      ? 'document.documentElement.dataset.introState="locked"'
+      : 'try{document.documentElement.dataset.introState=sessionStorage.getItem("marc-portfolio-machine-intro-v3")==="seen"?"seen":"locked"}catch(e){document.documentElement.dataset.introState="locked"}';
+
   return (
     <html
       lang="en"
@@ -55,8 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html:
-              'try{document.documentElement.dataset.introState=sessionStorage.getItem("marc-portfolio-intro-v1")==="seen"?"seen":"locked"}catch(e){document.documentElement.dataset.introState="locked"}',
+            __html: introStateScript,
           }}
         />
         <noscript>
