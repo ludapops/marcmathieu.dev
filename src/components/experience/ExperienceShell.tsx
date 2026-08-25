@@ -18,13 +18,34 @@ import styles from "./SplashGate.module.css";
 
 type ExperienceShellProps = { children: ReactNode };
 
+type ResponsivePointerDrag = {
+  dragging: boolean;
+  pointerId: number;
+  previousScrollBehavior: string;
+  startScrollY: number;
+  startY: number;
+};
+
+const interactiveDragTargets =
+  'a, button, input, textarea, select, summary, [contenteditable="true"]';
+
 export function ExperienceShell({ children }: ExperienceShellProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef(false);
+  const preserveScrollRef = useRef(false);
+  const resetScrollRef = useRef(false);
   const [active, setActive] = useState(true);
   const [motionReady, setMotionReady] = useState(false);
 
   useLayoutEffect(() => {
+    const navigation = performance.getEntriesByType("navigation")[0] as
+      PerformanceNavigationTiming | undefined;
+    resetScrollRef.current = navigation?.type === "reload";
+    if (resetScrollRef.current) {
+      window.history.scrollRestoration = "manual";
+      window.scrollTo({ behavior: "auto", left: 0, top: 0 });
+    }
+
     let hasSeenIntro = false;
     if (!INTRO_EVERY_LOAD) {
       try {
@@ -64,12 +85,36 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
     if (!content) return;
 
     content.inert = active;
-    if (!active) return;
+    if (!active) {
+      delete document.documentElement.dataset.introScrollLocked;
+      delete document.documentElement.dataset.introTouchScroll;
+      document.body.style.removeProperty("overflow");
+      return;
+    }
 
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const allowsTouchScroll =
+      window.matchMedia("(pointer: coarse)").matches ||
+      navigator.maxTouchPoints > 0;
+
+    const syncScrollLock = () => {
+      const allowsNativeSwipe = allowsTouchScroll && !window.location.hash;
+      if (allowsNativeSwipe) {
+        document.documentElement.dataset.introTouchScroll = "true";
+        delete document.documentElement.dataset.introScrollLocked;
+      } else {
+        delete document.documentElement.dataset.introTouchScroll;
+        document.documentElement.dataset.introScrollLocked = "true";
+      }
+      document.body.style.removeProperty("overflow");
+    };
+
+    syncScrollLock();
+    window.addEventListener("hashchange", syncScrollLock);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("hashchange", syncScrollLock);
+      delete document.documentElement.dataset.introTouchScroll;
+      delete document.documentElement.dataset.introScrollLocked;
+      document.body.style.removeProperty("overflow");
     };
   }, [active]);
 
@@ -88,33 +133,57 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
         return null;
       }
     };
+    let behaviorFrame = 0;
+    let behaviorRestoreFrame = 0;
+    const previousScrollBehavior =
+      document.documentElement.style.scrollBehavior;
     const scrollToHashTarget = () => {
       const target = findHashTarget();
       if (!target) return null;
-      const previousScrollBehavior =
-        document.documentElement.style.scrollBehavior;
+      window.cancelAnimationFrame(behaviorFrame);
+      window.cancelAnimationFrame(behaviorRestoreFrame);
       document.documentElement.style.scrollBehavior = "auto";
+      void document.documentElement.offsetHeight;
       target.scrollIntoView({ block: "start", behavior: "auto" });
-      document.documentElement.style.scrollBehavior = previousScrollBehavior;
+      behaviorFrame = window.requestAnimationFrame(() => {
+        behaviorRestoreFrame = window.requestAnimationFrame(() => {
+          document.documentElement.style.scrollBehavior =
+            previousScrollBehavior;
+        });
+      });
       return target;
     };
     const restoreHashIfOutsideViewport = () => {
       const target = findHashTarget();
-      if (!target) return;
+      if (!target) return true;
       const bounds = target.getBoundingClientRect();
       if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) {
         scrollToHashTarget();
+        return false;
       }
+      return true;
     };
     const restoreAfterSceneReady = () => {
       window.requestAnimationFrame(restoreHashIfOutsideViewport);
     };
-    const requestedHashTarget = findHashTarget();
+    const resetToTop = resetScrollRef.current && !preserveScrollRef.current;
+    const requestedHashTarget = resetToTop ? null : findHashTarget();
     let outerFrame = 0;
     let innerFrame = 0;
     let resizeFrame = 0;
     let settleTimer = 0;
+    let interactionTimer = 0;
+    let hashInterval = 0;
     let layoutObserver: ResizeObserver | null = null;
+
+    const stopHashRestore = () => {
+      window.clearInterval(hashInterval);
+      hashInterval = 0;
+      layoutObserver?.disconnect();
+      window.removeEventListener("wheel", stopHashRestore);
+      window.removeEventListener("touchstart", stopHashRestore);
+      window.removeEventListener("pointerdown", stopHashRestore);
+    };
 
     if (requestedHashTarget) {
       layoutObserver = new ResizeObserver(() => {
@@ -125,19 +194,32 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
       });
       layoutObserver.observe(document.body);
       window.addEventListener(introEvents.ready, restoreAfterSceneReady);
+      interactionTimer = window.setTimeout(() => {
+        window.addEventListener("wheel", stopHashRestore, { passive: true });
+        window.addEventListener("touchstart", stopHashRestore, {
+          passive: true,
+        });
+        window.addEventListener("pointerdown", stopHashRestore, {
+          passive: true,
+        });
+      }, 1_000);
+      hashInterval = window.setInterval(restoreHashIfOutsideViewport, 250);
       settleTimer = window.setTimeout(() => {
-        layoutObserver?.disconnect();
+        stopHashRestore();
         restoreHashIfOutsideViewport();
         window.removeEventListener(introEvents.ready, restoreAfterSceneReady);
-      }, 3000);
+      }, 20_000);
     }
 
     outerFrame = window.requestAnimationFrame(() => {
       innerFrame = window.requestAnimationFrame(() => {
-        const hashTarget = scrollToHashTarget();
+        const hashTarget = resetToTop ? null : scrollToHashTarget();
+        if (resetToTop) {
+          window.scrollTo({ behavior: "auto", left: 0, top: 0 });
+        }
         if (restoreFocusRef.current) {
           document.querySelector<HTMLElement>("#main-content")?.focus({
-            preventScroll: Boolean(hashTarget),
+            preventScroll: resetToTop || Boolean(hashTarget),
           });
         }
       });
@@ -148,12 +230,93 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
       window.cancelAnimationFrame(outerFrame);
       window.cancelAnimationFrame(innerFrame);
       window.cancelAnimationFrame(resizeFrame);
+      window.cancelAnimationFrame(behaviorFrame);
+      window.cancelAnimationFrame(behaviorRestoreFrame);
+      document.documentElement.style.scrollBehavior = previousScrollBehavior;
       window.clearTimeout(settleTimer);
+      window.clearTimeout(interactionTimer);
+      window.clearInterval(hashInterval);
+      window.removeEventListener("wheel", stopHashRestore);
+      window.removeEventListener("touchstart", stopHashRestore);
+      window.removeEventListener("pointerdown", stopHashRestore);
       window.removeEventListener(introEvents.ready, restoreAfterSceneReady);
     };
   }, [active]);
 
-  const complete = (restoreFocus: boolean) => {
+  useLayoutEffect(() => {
+    if (active || process.env.NODE_ENV !== "development") return;
+
+    let drag: ResponsivePointerDrag | null = null;
+    document.documentElement.dataset.responsiveDragScrollEnabled = "true";
+
+    const finishDrag = () => {
+      if (drag?.dragging) {
+        document.documentElement.style.scrollBehavior =
+          drag.previousScrollBehavior;
+      }
+      delete document.documentElement.dataset.responsiveDragScroll;
+      drag = null;
+    };
+
+    const pointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        event.button !== 0 ||
+        !event.isPrimary ||
+        (event.pointerType !== "mouse" && event.pointerType !== "touch") ||
+        window.innerWidth > 1023 ||
+        !(target instanceof Element) ||
+        (event.pointerType === "mouse" &&
+          target.closest(interactiveDragTargets))
+      ) {
+        return;
+      }
+
+      drag = {
+        dragging: false,
+        pointerId: event.pointerId,
+        previousScrollBehavior: document.documentElement.style.scrollBehavior,
+        startScrollY: window.scrollY,
+        startY: event.clientY,
+      };
+    };
+
+    const pointerMove = (event: PointerEvent) => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      if ((event.buttons & 1) !== 1) {
+        finishDrag();
+        return;
+      }
+
+      const distance = drag.startY - event.clientY;
+      if (!drag.dragging && Math.abs(distance) < 6) return;
+      if (!drag.dragging) {
+        drag.dragging = true;
+        document.documentElement.dataset.responsiveDragScroll = "true";
+        document.documentElement.style.scrollBehavior = "auto";
+      }
+
+      event.preventDefault();
+      window.scrollTo({ left: 0, top: drag.startScrollY + distance });
+    };
+
+    window.addEventListener("pointerdown", pointerDown);
+    window.addEventListener("pointermove", pointerMove, { passive: false });
+    window.addEventListener("pointerup", finishDrag);
+    window.addEventListener("pointercancel", finishDrag);
+    window.addEventListener("blur", finishDrag);
+    return () => {
+      finishDrag();
+      delete document.documentElement.dataset.responsiveDragScrollEnabled;
+      window.removeEventListener("pointerdown", pointerDown);
+      window.removeEventListener("pointermove", pointerMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+      window.removeEventListener("blur", finishDrag);
+    };
+  }, [active]);
+
+  const complete = (restoreFocus: boolean, preserveScroll = false) => {
     if (!INTRO_EVERY_LOAD) {
       try {
         window.sessionStorage.setItem(INTRO_STORAGE_KEY, "seen");
@@ -161,8 +324,12 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
         // The current page can still complete when storage is unavailable.
       }
     }
+    delete document.documentElement.dataset.introScrollLocked;
+    delete document.documentElement.dataset.introTouchScroll;
+    document.body.style.removeProperty("overflow");
     document.documentElement.dataset.introState = "seen";
     restoreFocusRef.current = restoreFocus;
+    preserveScrollRef.current = preserveScroll;
     setActive(false);
     setMotionReady(true);
     dispatchIntroComplete();
@@ -171,8 +338,16 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
   return (
     <>
       <SceneClient />
-      <div className={styles.backdrop} data-intro-backdrop aria-hidden="true" />
-      <SplashGate active={active} onComplete={complete} />
+      {active ? (
+        <>
+          <div
+            className={styles.backdrop}
+            data-intro-backdrop
+            aria-hidden="true"
+          />
+          <SplashGate active={active} onComplete={complete} />
+        </>
+      ) : null}
       <div ref={contentRef} data-experience-content>
         {motionReady ? <MotionDirector /> : null}
         <Navigation />

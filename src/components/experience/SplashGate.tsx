@@ -14,10 +14,16 @@ import styles from "./SplashGate.module.css";
 
 type SplashGateProps = {
   active: boolean;
-  onComplete: (restoreFocus: boolean) => void;
+  onComplete: (restoreFocus: boolean, preserveScroll?: boolean) => void;
 };
 
 type Phase = "idle" | "winding" | "running";
+
+type SwipeState = {
+  startX: number;
+  startY: number;
+  startScrollY: number;
+};
 
 export function SplashGate({ active, onComplete }: SplashGateProps) {
   const scopeRef = useRef<HTMLDivElement>(null);
@@ -33,6 +39,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
   const keyboardRef = useRef(false);
   const restoreFocusRef = useRef(false);
   const completedRef = useRef(false);
+  const swipeRef = useRef<SwipeState | null>(null);
   const resetTweenRef = useRef<gsap.core.Tween | null>(null);
   const introTweenRef = useRef<gsap.core.Tween | null>(null);
   const revealTimelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -40,6 +47,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
   const [ready, setReady] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [machineFailed, setMachineFailed] = useState(false);
+  const [touchEntry, setTouchEntry] = useState(false);
   const staticMode = reduced || machineFailed;
 
   const writeWind = useCallback((progress: number) => {
@@ -69,7 +77,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
   }, [writeWind]);
 
   const reveal = useCallback(
-    (skipped: boolean, restoreFocus: boolean) => {
+    (skipped: boolean, restoreFocus: boolean, preserveScroll = false) => {
       window.clearTimeout(watchdogRef.current);
       cancelAnimationFrame(frameRef.current);
       resetTweenRef.current?.kill();
@@ -104,7 +112,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
         if (completedRef.current) return;
         completedRef.current = true;
         window.clearTimeout(completionRef.current);
-        onComplete(restoreFocus);
+        onComplete(restoreFocus, preserveScroll);
       };
       const timeline = gsap.timeline({ onComplete: complete });
       revealTimelineRef.current = timeline;
@@ -248,25 +256,45 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const pointerQuery = window.matchMedia("(pointer: coarse)");
     const updateMotion = () => setReduced(query.matches);
+    const updatePointer = () =>
+      setTouchEntry(pointerQuery.matches || navigator.maxTouchPoints > 0);
     const machineReady = () => setReady(true);
     const machineFailure = () => setMachineFailed(true);
     const machineComplete = () => reveal(false, restoreFocusRef.current);
 
     updateMotion();
+    updatePointer();
     query.addEventListener("change", updateMotion);
+    pointerQuery.addEventListener("change", updatePointer);
     window.addEventListener(introEvents.ready, machineReady);
     window.addEventListener(introEvents.complete, machineComplete);
     window.addEventListener(introEvents.failed, machineFailure);
     window.addEventListener(introEvents.webglFailed, machineFailure);
     return () => {
       query.removeEventListener("change", updateMotion);
+      pointerQuery.removeEventListener("change", updatePointer);
       window.removeEventListener(introEvents.ready, machineReady);
       window.removeEventListener(introEvents.complete, machineComplete);
       window.removeEventListener(introEvents.failed, machineFailure);
       window.removeEventListener(introEvents.webglFailed, machineFailure);
     };
   }, [reveal]);
+
+  useEffect(() => {
+    if (!active || !touchEntry) return;
+
+    const enterFromScroll = () => {
+      const swipe = swipeRef.current;
+      if (!swipe || window.scrollY - swipe.startScrollY < 40) return;
+      swipeRef.current = null;
+      reveal(true, false, true);
+    };
+
+    window.addEventListener("scroll", enterFromScroll, { passive: true });
+    return () => window.removeEventListener("scroll", enterFromScroll);
+  }, [active, reveal, touchEntry]);
 
   useEffect(() => {
     if (!active) return;
@@ -339,6 +367,52 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       role="dialog"
       aria-modal="true"
       aria-label="Portfolio introduction"
+      onTouchStart={(event) => {
+        if (
+          !touchEntry ||
+          (event.target as HTMLElement).closest("button, a, input, textarea")
+        ) {
+          return;
+        }
+        const touch = event.touches[0];
+        if (!touch) return;
+        swipeRef.current = {
+          startX: touch.clientX,
+          startY: touch.clientY,
+          startScrollY: window.scrollY,
+        };
+      }}
+      onTouchMove={(event) => {
+        const swipe = swipeRef.current;
+        const touch = event.touches[0];
+        if (!swipe || !touch) return;
+        const horizontalDistance = touch.clientX - swipe.startX;
+        const verticalDistance = touch.clientY - swipe.startY;
+        if (
+          Math.abs(horizontalDistance) > 24 &&
+          Math.abs(horizontalDistance) >= Math.abs(verticalDistance)
+        ) {
+          swipeRef.current = null;
+          return;
+        }
+        if (
+          verticalDistance <= -64 &&
+          document.documentElement.dataset.introTouchScroll !== "true"
+        ) {
+          swipeRef.current = null;
+          reveal(true, false);
+        }
+      }}
+      onTouchEnd={() => {
+        const swipe = swipeRef.current;
+        if (swipe && window.scrollY - swipe.startScrollY >= 40) {
+          reveal(true, false, true);
+        }
+        swipeRef.current = null;
+      }}
+      onTouchCancel={() => {
+        swipeRef.current = null;
+      }}
     >
       <div className={styles.meta} data-machine-copy>
         <span>Portfolio / 2026</span>
@@ -369,6 +443,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
           ref={buttonRef}
           aria-disabled={!ready && !staticMode}
           onClick={() => staticMode && reveal(false, true)}
+          onContextMenu={(event) => event.preventDefault()}
           onPointerDown={(event) => {
             if (staticMode || event.button !== 0) return;
             pointerIdRef.current = event.pointerId;
@@ -402,7 +477,9 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
             : staticMode
               ? "Static entrance"
               : ready
-                ? "Wind for 0.9 seconds"
+                ? touchEntry
+                  ? "Swipe up to enter or hold for 0.9 seconds"
+                  : "Wind for 0.9 seconds"
                 : "Setting the machine"}
         </span>
         <button

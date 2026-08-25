@@ -23,6 +23,12 @@ import {
   sampleChapter,
 } from "./chapter-machine";
 import { introCameraStages, introMachineLayout } from "./machine-layout";
+import {
+  fitPerspectiveDistance,
+  getSceneViewport,
+  sceneViewportPresets,
+  type SceneViewport,
+} from "./scene-viewport";
 import styles from "./Scene.module.css";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -178,6 +184,17 @@ export function ProceduralScene() {
       platform.position.y = -1.05;
       introMachine.add(platform);
 
+      const launcherModule = new THREE.Group();
+      const dominoModule = new THREE.Group();
+      const seesawModule = new THREE.Group();
+      const finishModule = new THREE.Group();
+      introMachine.add(
+        launcherModule,
+        dominoModule,
+        seesawModule,
+        finishModule,
+      );
+
       for (let index = 0; index < 11; index += 1) {
         const mark = box(
           0.015,
@@ -206,7 +223,7 @@ export function ProceduralScene() {
       const springScaleForPlunger = (plungerX: number) =>
         Math.max(0.2, (plungerX - 0.095) / 0.78);
       launcher.add(spring, plunger);
-      introMachine.add(launcher);
+      launcherModule.add(launcher);
 
       const lever = new THREE.Group();
       const leverArm = box(0.12, 1.05, 0.12, materials.ivory);
@@ -215,7 +232,7 @@ export function ProceduralScene() {
       leverKnob.position.y = 1.02;
       lever.add(leverArm, leverKnob);
       lever.position.set(-3.75, -0.76, 0);
-      introMachine.add(lever);
+      launcherModule.add(lever);
 
       const introRail = tube(
         introMachineLayout.rail.map(
@@ -227,7 +244,7 @@ export function ProceduralScene() {
       const railTwin = introRail.mesh.clone();
       introRail.mesh.position.z = -0.2;
       railTwin.position.z = 0.2;
-      introMachine.add(introRail.mesh, railTwin);
+      launcherModule.add(introRail.mesh, railTwin);
 
       const limeBall = sphere(0.2, materials.lime);
       limeBall.position.set(
@@ -235,7 +252,7 @@ export function ProceduralScene() {
         introMachineLayout.marble.start.y,
         0,
       );
-      introMachine.add(limeBall);
+      launcherModule.add(limeBall);
 
       const dominoes = Array.from(
         { length: introMachineLayout.dominoes.count },
@@ -255,7 +272,7 @@ export function ProceduralScene() {
             introMachineLayout.floorY + 0.02,
             0,
           );
-          introMachine.add(pivot);
+          dominoModule.add(pivot);
           return pivot;
         },
       );
@@ -276,7 +293,7 @@ export function ProceduralScene() {
         introMachineLayout.seesaw.y,
         0,
       );
-      introMachine.add(seesaw);
+      seesawModule.add(seesaw);
 
       const orangeBall = sphere(0.19, materials.orange);
       orangeBall.position.set(
@@ -284,7 +301,7 @@ export function ProceduralScene() {
         introMachineLayout.orangeBall.y,
         0,
       );
-      introMachine.add(orangeBall);
+      seesawModule.add(orangeBall);
 
       const enterKey = new THREE.Group();
       const keyBase = box(
@@ -301,7 +318,7 @@ export function ProceduralScene() {
         introMachineLayout.enterKey.y,
         0,
       );
-      introMachine.add(enterKey);
+      finishModule.add(enterKey);
 
       const chapterGroups = chapterActions.map(() => {
         const group = new THREE.Group();
@@ -495,8 +512,17 @@ export function ProceduralScene() {
       let activeChapter = -1;
       let activeProgress = 0;
       let renderFrame = 0;
+      let viewportKind: SceneViewport = getSceneViewport(
+        window.innerWidth,
+        window.innerHeight,
+        window.matchMedia("(pointer: coarse)").matches,
+      );
       const animations = new Set<gsap.core.Animation>();
       const cameraTarget = new THREE.Vector3(0, 0, 0);
+      const cameraBounds = new THREE.Box3();
+      const objectBounds = new THREE.Box3();
+      const boundsSize = new THREE.Vector3();
+      const boundsCenter = new THREE.Vector3();
       const chapterElements = Array.from(
         document.querySelectorAll<HTMLElement>("[data-machine-chapter]"),
       );
@@ -521,8 +547,88 @@ export function ProceduralScene() {
       introMachine.visible = introActive;
       canvas.dataset.machineMode = introActive ? "intro" : "idle";
       canvas.style.opacity = introActive ? "1" : "0";
+      canvas.dataset.machineViewport = viewportKind;
 
-      const baseCameraZ = () => (window.innerWidth < 700 ? 13.4 : 10.4);
+      const getViewportSize = () => ({
+        width: Math.max(
+          1,
+          Math.round(window.visualViewport?.width ?? window.innerWidth),
+        ),
+        height: Math.max(
+          1,
+          Math.round(window.visualViewport?.height ?? window.innerHeight),
+        ),
+      });
+
+      const getCameraFrame = (objects: THREE.Object3D[], padding: number) => {
+        cameraBounds.makeEmpty();
+        scene.updateMatrixWorld(true);
+        objects.forEach((object) => {
+          objectBounds.setFromObject(object, true);
+          if (!objectBounds.isEmpty()) cameraBounds.union(objectBounds);
+        });
+        cameraBounds.getSize(boundsSize);
+        cameraBounds.getCenter(boundsCenter);
+        const viewport = getViewportSize();
+        const distance = fitPerspectiveDistance({
+          width: Math.max(boundsSize.x, 0.1),
+          height: Math.max(boundsSize.y, 0.1),
+          depth: Math.max(boundsSize.z, 0.1),
+          aspect: viewport.width / viewport.height,
+          verticalFov: camera.fov,
+          padding,
+        });
+
+        return {
+          x: boundsCenter.x,
+          y: boundsCenter.y,
+          z: boundsCenter.z + distance,
+        };
+      };
+
+      const getIntroOpeningFrame = () => {
+        const preset = sceneViewportPresets[viewportKind];
+        if (viewportKind === "desktop") {
+          return { x: 0, y: 0, z: 10.4 };
+        }
+        const focusObjects =
+          viewportKind === "phone"
+            ? [launcherModule]
+            : [launcherModule, dominoModule, seesawModule, finishModule];
+        const frame = getCameraFrame(focusObjects, preset.cameraPadding);
+        return {
+          ...frame,
+          y: frame.y - (viewportKind === "phone" ? 0.18 : 0.04),
+        };
+      };
+
+      const getIntroStageFrame = (stage: MachineStage) => {
+        if (viewportKind === "desktop") return introCameraStages[stage];
+        const phoneObjects: Record<MachineStage, THREE.Object3D[]> = {
+          marble: [launcherModule],
+          dominoes: [dominoModule, seesawModule],
+          seesaw: [seesawModule, finishModule],
+          key: [seesawModule, finishModule],
+          complete: [finishModule],
+        };
+        const tabletObjects: Record<MachineStage, THREE.Object3D[]> = {
+          marble: [launcherModule, dominoModule],
+          dominoes: [dominoModule, seesawModule],
+          seesaw: [seesawModule, finishModule],
+          key: [seesawModule, finishModule],
+          complete: [finishModule],
+        };
+        const preset = sceneViewportPresets[viewportKind];
+        const frame = getCameraFrame(
+          viewportKind === "phone" ? phoneObjects[stage] : tabletObjects[stage],
+          preset.cameraPadding,
+        );
+        return {
+          ...frame,
+          y: frame.y - (viewportKind === "phone" ? 0.14 : 0.04),
+        };
+      };
+
       const renderNow = () => {
         camera.lookAt(cameraTarget);
         renderer.render(scene, camera);
@@ -533,26 +639,48 @@ export function ProceduralScene() {
       };
 
       const resize = () => {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        const { width, height } = getViewportSize();
+        viewportKind = getSceneViewport(
+          width,
+          height,
+          window.matchMedia("(pointer: coarse)").matches,
+        );
+        const preset = sceneViewportPresets[viewportKind];
+        canvas.dataset.machineViewport = viewportKind;
+        renderer.setPixelRatio(
+          Math.min(window.devicePixelRatio, preset.pixelRatio),
+        );
         renderer.setSize(width, height, false);
         camera.aspect = width / height;
-        camera.position.z = baseCameraZ();
-        camera.position.x = 0;
-        camera.position.y = 0;
-        cameraTarget.set(0, 0, 0);
         camera.updateProjectionMatrix();
-        if (width < 700) {
-          introMachine.scale.setScalar(0.8);
-          introMachine.position.set(0.45, -0.4, 0);
-          chapterMachine.scale.setScalar(0.68);
-          chapterMachine.position.set(0, 0.08, 0);
+        keyLight.shadow.mapSize.set(preset.shadowMapSize, preset.shadowMapSize);
+        introMachine.scale.setScalar(1);
+        introMachine.position.set(
+          viewportKind === "desktop" ? 0.15 : 0,
+          viewportKind === "phone" ? -0.12 : -0.2,
+          0,
+        );
+        chapterMachine.scale.set(
+          viewportKind === "phone"
+            ? 0.82
+            : viewportKind === "tablet"
+              ? 0.92
+              : 1,
+          1,
+          1,
+        );
+
+        if (introActive) {
+          const frame = getIntroOpeningFrame();
+          camera.position.set(frame.x, frame.y, frame.z);
+          cameraTarget.set(frame.x, frame.y, 0);
+          canvas.dataset.machineFrame = "opening";
+        } else if (activeChapter >= 0) {
+          setChapter(activeChapter, activeProgress);
+          return;
         } else {
-          introMachine.scale.setScalar(1);
-          introMachine.position.set(0.15, -0.2, 0);
-          chapterMachine.scale.setScalar(1);
-          chapterMachine.position.set(0, 0, 0);
+          camera.position.set(0, 0, 10.4);
+          cameraTarget.set(0, 0, 0);
         }
         render();
       };
@@ -572,13 +700,21 @@ export function ProceduralScene() {
         render();
       };
       const animateCamera = (stage: MachineStage) => {
-        const target = introCameraStages[stage];
-        const mobileDepth = window.innerWidth < 700 ? 3.2 : 0;
+        const target = getIntroStageFrame(stage);
+        canvas.dataset.machineFrame = stage;
+        const cameraDuration =
+          stage === "complete"
+            ? 0.32
+            : viewportKind === "phone"
+              ? 0.34
+              : viewportKind === "tablet"
+                ? 0.44
+                : 0.58;
         const positionTween = gsap.to(camera.position, {
           x: target.x,
           y: target.y,
-          z: target.z + mobileDepth,
-          duration: stage === "complete" ? 0.32 : 0.58,
+          z: target.z,
+          duration: cameraDuration,
           ease: stage === "complete" ? "power4.in" : "power3.inOut",
           overwrite: "auto",
           onUpdate: renderNow,
@@ -586,8 +722,8 @@ export function ProceduralScene() {
         });
         const targetTween = gsap.to(cameraTarget, {
           x: target.x,
-          y: target.y - 0.08,
-          duration: 0.52,
+          y: target.y,
+          duration: Math.min(cameraDuration, 0.52),
           ease: "power3.inOut",
           overwrite: "auto",
           onUpdate: renderNow,
@@ -640,7 +776,7 @@ export function ProceduralScene() {
         canvas.dataset.machineMode = "idle";
         canvas.style.opacity = "0";
         if (sceneShell) sceneShell.style.visibility = "hidden";
-        camera.position.set(0, 0, baseCameraZ());
+        camera.position.set(0, 0, 10.4);
         cameraTarget.set(0, 0, 0);
         renderNow();
         requestAnimationFrame(() => ScrollTrigger.refresh());
@@ -666,30 +802,17 @@ export function ProceduralScene() {
         canvas.dataset.machineShot = sample.shotProgress.toFixed(4);
         canvas.dataset.machineScore = sample.scoreProgress.toFixed(4);
         canvas.dataset.machineConfetti = sample.confettiProgress.toFixed(4);
+        canvas.dataset.machineFrame = `chapter-${index + 1}`;
         introMachine.visible = false;
         chapterMachine.visible = true;
         chapterGroups.forEach((group, groupIndex) => {
           group.visible = groupIndex === index;
         });
-        chapterMachine.position.y =
-          window.innerWidth < 700 ? 0.08 : action === "roll-right" ? 0 : 0.3;
+        chapterMachine.position.y = action === "roll-right" ? 0 : 0.3;
         chapterBall.visible = true;
         if (sceneShell) sceneShell.style.visibility = "visible";
         clipSceneToChapter(index);
         canvas.style.opacity = "1";
-
-        camera.position.x =
-          action === "roll-right"
-            ? THREE.MathUtils.lerp(-0.18, 0.18, progress)
-            : action === "drop-left"
-              ? THREE.MathUtils.lerp(0.16, -0.18, progress)
-              : THREE.MathUtils.lerp(-0.16, 0.16, sample.shotProgress);
-        camera.position.y =
-          action === "basket-shot"
-            ? THREE.MathUtils.lerp(0.16, -0.02, progress)
-            : 0;
-        camera.position.z = window.innerWidth < 700 ? 14.6 : 8.6;
-        cameraTarget.set(0, action === "basket-shot" ? 0.12 : -0.05, 0);
 
         chapterBall.position.set(sample.ball.x, sample.ball.y, 0);
         chapterBall.rotation.z = sample.ball.rotation;
@@ -731,6 +854,30 @@ export function ProceduralScene() {
           confetti.rotation.z = confettiProgress * piece.spin;
           confetti.scale.setScalar(Math.min(1, confettiProgress * 5));
         });
+
+        if (viewportKind === "desktop") {
+          camera.position.x =
+            action === "roll-right"
+              ? THREE.MathUtils.lerp(-0.18, 0.18, progress)
+              : action === "drop-left"
+                ? THREE.MathUtils.lerp(0.16, -0.18, progress)
+                : THREE.MathUtils.lerp(-0.16, 0.16, sample.shotProgress);
+          camera.position.y =
+            action === "basket-shot"
+              ? THREE.MathUtils.lerp(0.16, -0.02, progress)
+              : 0;
+          camera.position.z = 8.6;
+          cameraTarget.set(0, action === "basket-shot" ? 0.12 : -0.05, 0);
+        } else {
+          const preset = sceneViewportPresets[viewportKind];
+          const frame = getCameraFrame(
+            [chapterGroups[index]],
+            preset.chapterPadding,
+          );
+          const titleClearance = viewportKind === "phone" ? -0.28 : -0.14;
+          camera.position.set(frame.x, frame.y + titleClearance, frame.z);
+          cameraTarget.set(frame.x, frame.y + titleClearance, 0);
+        }
         render();
       };
 
@@ -937,6 +1084,7 @@ export function ProceduralScene() {
       resize();
       if (introActive) dispatchMachineReady();
       window.addEventListener("resize", resize);
+      window.visualViewport?.addEventListener("resize", resize);
       window.addEventListener(introEvents.wind, windEvent);
       window.addEventListener(introEvents.start, startMachine);
       window.addEventListener(introEvents.introComplete, finishIntro);
@@ -949,6 +1097,7 @@ export function ProceduralScene() {
         triggers.forEach((trigger) => trigger.kill());
         animations.forEach((animation) => animation.kill());
         window.removeEventListener("resize", resize);
+        window.visualViewport?.removeEventListener("resize", resize);
         window.removeEventListener(introEvents.wind, windEvent);
         window.removeEventListener(introEvents.start, startMachine);
         window.removeEventListener(introEvents.introComplete, finishIntro);

@@ -118,7 +118,7 @@ export default function Home() {
       >
         <p className={styles.eyebrow}>Open to senior frontend roles</p>
         <h2 id="contact-title" data-motion="heading">
-          Let&apos;s talk about what you&apos;re building.
+          Need help building something?
         </h2>
         <a className={styles.email} href="mailto:avianmathieu@gmail.com">
           avianmathieu@gmail.com

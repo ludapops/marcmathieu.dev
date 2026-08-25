@@ -4,10 +4,13 @@ import { expect, type Page, test } from "@playwright/test";
 const splash = (page: Page) => page.locator("[data-intro-splash]");
 
 async function dismissIntro(page: Page) {
+  await expect(
+    page.locator('[data-intro-splash][data-machine-ready="true"]'),
+  ).toBeVisible({ timeout: 10_000 });
   const enterPortfolio = page.getByRole("button", { name: "Enter portfolio" });
   if (await enterPortfolio.isVisible()) await enterPortfolio.click();
   else await page.getByRole("button", { name: "Skip intro" }).click();
-  await expect(splash(page)).toBeHidden();
+  await expect(splash(page)).toBeHidden({ timeout: 7_000 });
 }
 
 async function setTransitionProgress(
@@ -43,12 +46,15 @@ test.beforeEach(async ({ page }) => {
 
 test("locks the portfolio behind an accessible first-session entry", async ({
   page,
-}) => {
+}, testInfo) => {
   await expect(
     page.getByRole("dialog", { name: "Portfolio introduction" }),
   ).toBeVisible();
   await expect(page.getByText("Portfolio / 2026")).toBeVisible();
   await expect(page.getByText("Marc Mathieu", { exact: true })).toBeVisible();
+  const machineLabel = page.locator('[data-machine-copy][aria-hidden="true"]');
+  await expect(machineLabel).toBeVisible();
+  await expect(machineLabel).toHaveText(/Wind\s*Cascade\s*Enter/);
   await expect(
     page.getByRole("button", { name: "Hold to wind" }),
   ).toBeVisible();
@@ -65,12 +71,48 @@ test("locks the portfolio behind an accessible first-session entry", async ({
         .evaluate((node) => (node as HTMLElement).inert),
     )
     .toBe(true);
-  await expect
-    .poll(() => page.evaluate(() => document.body.style.overflow))
-    .toBe("hidden");
+  const touchViewport =
+    testInfo.project.name.startsWith("mobile") ||
+    testInfo.project.name === "tablet";
+  if (touchViewport) {
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.dataset.introScrollLocked),
+      )
+      .toBeUndefined();
+  } else {
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.dataset.introScrollLocked),
+      )
+      .toBe("true");
+  }
 
   const results = await new AxeBuilder({ page }).exclude("canvas").analyze();
   expect(results.violations).toEqual([]);
+});
+
+test("suppresses the native context menu on the winding control", async ({
+  page,
+}) => {
+  const enter = page.getByRole("button", { name: "Hold to wind" });
+  await expect(enter).toBeVisible();
+
+  const contextMenuPrevented = await enter.evaluate((button) => {
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+    });
+    button.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+
+  expect(contextMenuPrevented).toBe(true);
+  await expect(
+    page.getByRole("progressbar", { name: "Machine winding progress" }),
+  ).toHaveAttribute("aria-valuenow", "0");
+  await expect(splash(page)).toBeVisible();
 });
 
 test("resets incomplete and cancelled pointer holds", async ({ page }) => {
@@ -173,7 +215,11 @@ test("auto-launches the machine at full wind and enters after the key impact", a
 });
 
 test("supports a continuous touch hold", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile", "Touch-path coverage");
+  test.skip(
+    !testInfo.project.name.startsWith("mobile") &&
+      testInfo.project.name !== "tablet",
+    "Touch-path coverage",
+  );
   await expect(
     page.getByRole("button", { name: "Hold to wind" }),
   ).toBeVisible();
@@ -188,6 +234,314 @@ test("supports a continuous touch hold", async ({ page }, testInfo) => {
     page.getByRole("button", { name: "Machine running" }),
   ).toBeVisible();
   await expect(splash(page)).toBeHidden({ timeout: 6_500 });
+});
+
+test("uses an upward touch gesture to enter and restores page scrolling", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    !testInfo.project.name.startsWith("mobile") &&
+      testInfo.project.name !== "tablet",
+    "Touch-entry coverage",
+  );
+  await expect(page.getByText(/Swipe up to enter/i)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+
+  const intro = splash(page);
+  await intro.dispatchEvent("touchstart", {
+    touches: [{ identifier: 0, clientX: 190, clientY: 520 }],
+  });
+  await intro.dispatchEvent("touchmove", {
+    touches: [{ identifier: 0, clientX: 250, clientY: 500 }],
+  });
+  await expect(intro).toBeVisible();
+  await intro.dispatchEvent("touchstart", {
+    touches: [{ identifier: 1, clientX: 194, clientY: 520 }],
+  });
+  await page.evaluate(() => window.scrollTo(0, 90));
+
+  await expect(intro).toHaveCount(0);
+  await expect(page.locator("[data-intro-backdrop]")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.dataset.introScrollLocked),
+    )
+    .toBeUndefined();
+  await expect
+    .poll(() =>
+      page
+        .locator("[data-experience-content]")
+        .evaluate((node) => (node as HTMLElement).inert),
+    )
+    .toBe(false);
+
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(90);
+});
+
+test("accepts a browser-level touch swipe on the mobile splash", async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile-chromium",
+    "Chromium touch input check",
+  );
+  await expect(page.getByText(/Swipe up to enter/i)).toBeVisible();
+  const session = await context.newCDPSession(page);
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: 190, y: 420 }],
+  });
+  for (const y of [390, 360, 330, 300]) {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: 192, y }],
+    });
+    await page.waitForTimeout(30);
+  }
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+
+  await expect(splash(page)).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(0);
+});
+
+test("clears a stale development scroll lock after mobile entry", async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile-chromium",
+    "Chromium touch input check",
+  );
+  await expect(
+    page.locator('[data-intro-splash][data-machine-ready="true"]'),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    document.body.style.overflow = "hidden";
+  });
+  await page.getByRole("button", { name: "Skip intro" }).click();
+  await expect(splash(page)).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        inline: document.body.style.overflow,
+        locked: document.documentElement.dataset.introScrollLocked,
+      })),
+    )
+    .toEqual({ inline: "", locked: undefined });
+
+  const session = await context.newCDPSession(page);
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: 190, y: 620 }],
+  });
+  for (const y of [580, 530, 480, 430, 380]) {
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: 190, y }],
+    });
+  }
+  await session.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(0);
+});
+
+test("tracks the intro reaction through phone-specific camera frames", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile-chromium",
+    "Phone camera progression check",
+  );
+  const canvas = page.locator("[data-machine-canvas]");
+  await expect(canvas).toHaveAttribute("data-machine-frame", "opening");
+  await page.evaluate(() => {
+    const frames: string[] = [];
+    (
+      window as Window & { __responsiveMachineFrames?: string[] }
+    ).__responsiveMachineFrames = frames;
+    window.addEventListener("portfolio:machine-stage", () => {
+      window.setTimeout(() => {
+        const frame = document.querySelector<HTMLCanvasElement>(
+          "[data-machine-canvas]",
+        )?.dataset.machineFrame;
+        if (frame) frames.push(frame);
+      });
+    });
+  });
+  const enter = page.locator("[data-machine-control] button").first();
+  await enter.dispatchEvent("pointerdown", {
+    pointerId: 43,
+    pointerType: "touch",
+    button: 0,
+  });
+
+  await expect(splash(page)).toHaveCount(0, { timeout: 6_500 });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { __responsiveMachineFrames?: string[] })
+            .__responsiveMachineFrames,
+      ),
+    )
+    .toEqual(["marble", "dominoes", "seesaw", "key", "complete"]);
+});
+
+test("switches responsive scene presets without treating landscape phones as tablets", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Phone viewport coverage");
+  const canvas = page.locator("[data-machine-canvas]");
+  await expect(canvas).toHaveAttribute("data-machine-viewport", "phone");
+  await expect(canvas).toHaveAttribute("data-machine-frame", "opening");
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect(canvas).toHaveAttribute("data-machine-viewport", "phone");
+});
+
+test("uses the tablet scene preset", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "tablet", "Tablet viewport coverage");
+  await expect(page.locator("[data-machine-canvas]")).toHaveAttribute(
+    "data-machine-viewport",
+    "tablet",
+  );
+});
+
+test("uses the compact tablet header and hero layout", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "tablet", "Tablet layout coverage");
+  await dismissIntro(page);
+
+  const layout = await page.evaluate(() => {
+    const navigation = document.querySelector("nav");
+    const hero = document.querySelector("#top");
+    return {
+      heroHeight: hero?.getBoundingClientRect().height ?? 0,
+      viewportHeight: window.innerHeight,
+      navigationOverflow: navigation
+        ? navigation.scrollWidth - navigation.clientWidth
+        : 1,
+    };
+  });
+  expect(layout.navigationOverflow).toBe(0);
+  expect(layout.heroHeight).toBeLessThan(layout.viewportHeight);
+});
+
+test("keeps touch viewports horizontally clipped and vertically scrollable", async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile-chromium" &&
+      testInfo.project.name !== "tablet",
+    "Touch viewport coverage",
+  );
+  await dismissIntro(page);
+
+  const viewport = await page.evaluate(() => ({
+    bodyOverflowY: getComputedStyle(document.body).overflowY,
+    clientWidth: document.documentElement.clientWidth,
+    htmlOverflowY: getComputedStyle(document.documentElement).overflowY,
+    innerWidth: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(viewport.innerWidth).toBe(viewport.clientWidth);
+  expect(viewport.scrollWidth).toBe(viewport.clientWidth);
+  expect(viewport.htmlOverflowY).not.toBe("hidden");
+  expect(viewport.bodyOverflowY).not.toBe("hidden");
+
+  if (testInfo.project.name === "mobile-chromium") {
+    const session = await context.newCDPSession(page);
+    const centerX = Math.round(viewport.clientWidth / 2);
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x: centerX, y: 700 }],
+    });
+    for (const y of [640, 580, 520, 460, 400, 340]) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: centerX, y }],
+      });
+    }
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchEnd",
+      touchPoints: [],
+    });
+  } else {
+    await page.evaluate(() => window.scrollTo(0, 360));
+  }
+
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(0);
+});
+
+test("supports mouse dragging in narrow development previews", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Chromium mouse coverage");
+  await dismissIntro(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  await page.mouse.move(195, 700);
+  await page.mouse.down();
+  for (const y of [660, 620, 580, 540, 500, 460, 420, 380]) {
+    await page.mouse.move(195, y);
+  }
+  await page.mouse.up();
+
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(0);
+});
+
+test("supports Chrome device-mode mouse-to-touch dragging", async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile-chromium",
+    "Chrome touch emulation coverage",
+  );
+  await dismissIntro(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  const session = await context.newCDPSession(page);
+  await session.send("Input.emulateTouchFromMouseEvent", {
+    button: "left",
+    type: "mousePressed",
+    x: 195,
+    y: 700,
+  });
+  for (const y of [660, 620, 580, 540, 500, 460, 420, 380]) {
+    await session.send("Input.emulateTouchFromMouseEvent", {
+      button: "left",
+      type: "mouseMoved",
+      x: 195,
+      y,
+    });
+  }
+  await session.send("Input.emulateTouchFromMouseEvent", {
+    button: "left",
+    type: "mouseReleased",
+    x: 195,
+    y: 380,
+  });
+
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(0);
 });
 
 test("supports keyboard holds, Escape, and development reloads", async ({
@@ -244,12 +598,15 @@ test("keeps the intro machine active when reloading from a restored scroll posit
     "visibility",
     "hidden",
   );
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await dismissIntro(page);
+  await expect(page.locator("#top")).toBeInViewport();
 });
 
 test("preserves a requested hash after dismissal", async ({ page }) => {
   await page.goto("/#contact");
   await dismissIntro(page);
-  await expect(page.locator("#contact")).toBeInViewport();
+  await expect(page.locator("#contact")).toBeInViewport({ timeout: 20_000 });
 });
 
 test("presents the positioning and all three case studies", async ({
@@ -271,6 +628,12 @@ test("presents the positioning and all three case studies", async ({
   await expect(
     page.getByRole("heading", { name: "Selected frontend work.", level: 2 }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      name: "Need help building something?",
+      level: 2,
+    }),
+  ).toBeAttached();
 
   const beautyHeading = page.getByRole("heading", {
     name: "BeautyNexos",
@@ -696,6 +1059,10 @@ test("@visual expanded AG1 case study", async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.reload();
   await dismissIntro(page);
+  await page.addStyleTag({
+    content:
+      'a[href="#main-content"], nav[aria-label="Primary navigation"] { visibility: hidden !important; }',
+  });
   const ag1 = page.locator("#ag1");
   await ag1.locator("summary").click();
   for (const image of await ag1.locator("img").all()) {
@@ -715,6 +1082,10 @@ test("@visual mobile compact case study", async ({ page }, testInfo) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.reload();
   await dismissIntro(page);
+  await page.addStyleTag({
+    content:
+      'a[href="#main-content"], nav[aria-label="Primary navigation"] { visibility: hidden !important; }',
+  });
   const ag1 = page.locator("#ag1");
   await ag1.scrollIntoViewIfNeeded();
   await expect(ag1).toHaveScreenshot("case-study-ag1-mobile.png", {
@@ -766,13 +1137,67 @@ for (const chapter of [
   });
 }
 
-test("@visual mobile basket chapter", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "mobile", "Mobile basket baseline");
+for (const chapter of [
+  { name: "AG1", progress: 0.5, snapshot: "machine-roll-mobile.png" },
+  {
+    name: "Battlefield",
+    progress: 0.58,
+    snapshot: "machine-drop-mobile.png",
+  },
+  {
+    name: "BeautyNexos",
+    progress: 0.58,
+    snapshot: "machine-finish-mobile.png",
+  },
+] as const) {
+  test(`@visual mobile ${chapter.name} machine chapter`, async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "Mobile chapter baseline");
+    await dismissIntro(page);
+    await setTransitionProgress(page, chapter.name, chapter.progress);
+    await page.getByRole("button", { name: "Pause motion" }).click();
+    await page.waitForTimeout(150);
+    await expect(page).toHaveScreenshot(chapter.snapshot, {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.001,
+    });
+  });
+}
+
+test("@visual tablet splash", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "tablet", "Tablet splash baseline");
+  await expect(page.getByText("Portfolio / 2026")).toBeVisible();
+  await expect(page.locator("canvas")).toHaveAttribute(
+    "data-machine-viewport",
+    "tablet",
+  );
+  await page.waitForTimeout(300);
+  await expect(page).toHaveScreenshot("splash-tablet.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+test("@visual tablet hero", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "tablet", "Tablet hero baseline");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  await dismissIntro(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(page).toHaveScreenshot("portfolio-tablet.png", {
+    animations: "disabled",
+    maxDiffPixelRatio: 0.001,
+  });
+});
+
+test("@visual tablet basket chapter", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "tablet", "Tablet chapter baseline");
   await dismissIntro(page);
   await setTransitionProgress(page, "BeautyNexos", 0.58);
   await page.getByRole("button", { name: "Pause motion" }).click();
   await page.waitForTimeout(150);
-  await expect(page).toHaveScreenshot("machine-finish-mobile.png", {
+  await expect(page).toHaveScreenshot("machine-finish-tablet.png", {
     animations: "disabled",
     maxDiffPixelRatio: 0.001,
   });

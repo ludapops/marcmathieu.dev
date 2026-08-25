@@ -20,6 +20,7 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
   background: var(--paper);
 }
 
@@ -31,6 +32,23 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+html[data-responsive-drag-scroll="true"],
+html[data-responsive-drag-scroll="true"] * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+html[data-responsive-drag-scroll-enabled="true"],
+html[data-responsive-drag-scroll-enabled="true"] body,
+html[data-responsive-drag-scroll-enabled="true"] [data-experience-content] {
+  touch-action: none;
+}
+
+html[data-intro-scroll-locked="true"],
+html[data-intro-scroll-locked="true"] body {
+  overflow: hidden;
 }
 
 html[data-intro-state="pending"],

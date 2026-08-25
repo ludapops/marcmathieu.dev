@@ -42,7 +42,7 @@ export function CaseStudy({ project }: { project: Project }) {
             alt={project.coverImage.alt}
             height={coverDimensions.height}
             priority={project.id === "ag1"}
-            sizes="(max-width: 800px) 100vw, 92vw"
+            sizes="(max-width: 1023px) 100vw, 92vw"
             src={project.coverImage.src}
             width={coverDimensions.width}
           />
@@ -109,7 +109,7 @@ export function CaseStudy({ project }: { project: Project }) {
                   <Image
                     alt={image.alt}
                     height={960}
-                    sizes="(max-width: 800px) 100vw, 80vw"
+                    sizes="(max-width: 1023px) 100vw, 80vw"
                     src={image.src}
                     width={1728}
                   />

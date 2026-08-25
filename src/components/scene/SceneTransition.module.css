@@ -1,5 +1,6 @@
 .transition {
   min-height: 92svh;
+  min-height: 92dvh;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -39,4 +40,23 @@
 
 .transition div {
   writing-mode: vertical-rl;
+}
+
+@media (max-width: 1023px) {
+  .transition {
+    padding: var(--page-pad) max(var(--page-pad), env(safe-area-inset-right))
+      max(var(--page-pad), env(safe-area-inset-bottom))
+      max(var(--page-pad), env(safe-area-inset-left));
+  }
+}
+
+@media (max-width: 599px) {
+  .transition p {
+    max-width: calc(100% - 2.25rem);
+    font-size: clamp(2.5rem, 13vw, 4rem);
+  }
+
+  .transition div {
+    padding-bottom: 0.2rem;
+  }
 }
