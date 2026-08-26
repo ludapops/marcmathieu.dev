@@ -1,9 +1,8 @@
 "use client";
 
-import gsap from "gsap";
+import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
 import { useLayoutEffect, useRef, useState } from "react";
-import { MotionDirector } from "@/components/motion/MotionDirector";
 import { Navigation } from "@/components/navigation/Navigation";
 import { SceneClient } from "@/components/scene/SceneClient";
 import {
@@ -15,6 +14,14 @@ import {
 } from "./intro-events";
 import { SplashGate } from "./SplashGate";
 import styles from "./SplashGate.module.css";
+
+const MotionDirector = dynamic(
+  () =>
+    import("@/components/motion/MotionDirector").then(
+      (module) => module.MotionDirector,
+    ),
+  { ssr: false },
+);
 
 type ExperienceShellProps = { children: ReactNode };
 
@@ -34,13 +41,22 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
   const restoreFocusRef = useRef(false);
   const preserveScrollRef = useRef(false);
   const resetScrollRef = useRef(false);
+  const requestedHashRef = useRef("");
   const [active, setActive] = useState(true);
   const [motionReady, setMotionReady] = useState(false);
 
   useLayoutEffect(() => {
     const navigation = performance.getEntriesByType("navigation")[0] as
       PerformanceNavigationTiming | undefined;
-    resetScrollRef.current = navigation?.type === "reload";
+    if (window.location.hash) {
+      document.documentElement.dataset.requestedHash = window.location.hash;
+    }
+    requestedHashRef.current =
+      window.location.hash ||
+      document.documentElement.dataset.requestedHash ||
+      "";
+    resetScrollRef.current =
+      navigation?.type === "reload" && !requestedHashRef.current;
     if (resetScrollRef.current) {
       window.history.scrollRestoration = "manual";
       window.scrollTo({ behavior: "auto", left: 0, top: 0 });
@@ -68,10 +84,12 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
       shouldShow &&
       !window.matchMedia("(prefers-reduced-motion: reduce)").matches
     ) {
-      gsap.set('[data-motion="hero"]', {
-        clipPath: "inset(0 0 100% 0)",
-        y: 34,
-      });
+      document.querySelectorAll<HTMLElement>('[data-motion="hero"]').forEach(
+        (element) => {
+          element.style.clipPath = "inset(0 0 100% 0)";
+          element.style.transform = "translateY(34px)";
+        },
+      );
     }
     const frame = window.requestAnimationFrame(() => {
       setActive(shouldShow);
@@ -97,6 +115,10 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
       navigator.maxTouchPoints > 0;
 
     const syncScrollLock = () => {
+      if (window.location.hash) {
+        requestedHashRef.current = window.location.hash;
+        document.documentElement.dataset.requestedHash = window.location.hash;
+      }
       const allowsNativeSwipe = allowsTouchScroll && !window.location.hash;
       if (allowsNativeSwipe) {
         document.documentElement.dataset.introTouchScroll = "true";
@@ -123,9 +145,14 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
 
     const findHashTarget = () => {
       try {
-        return window.location.hash
+        const requestedHash =
+          window.location.hash ||
+          requestedHashRef.current ||
+          document.documentElement.dataset.requestedHash ||
+          "";
+        return requestedHash
           ? document.getElementById(
-              decodeURIComponent(window.location.hash.slice(1)),
+              decodeURIComponent(requestedHash.slice(1)),
             )
           : null;
       } catch {
@@ -180,12 +207,21 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
       window.clearInterval(hashInterval);
       hashInterval = 0;
       layoutObserver?.disconnect();
+      delete document.documentElement.dataset.hashRestoring;
       window.removeEventListener("wheel", stopHashRestore);
       window.removeEventListener("touchstart", stopHashRestore);
       window.removeEventListener("pointerdown", stopHashRestore);
     };
 
     if (requestedHashTarget) {
+      if (!window.location.hash && requestedHashRef.current) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${window.location.pathname}${window.location.search}${requestedHashRef.current}`,
+        );
+      }
+      document.documentElement.dataset.hashRestoring = "true";
       layoutObserver = new ResizeObserver(() => {
         window.cancelAnimationFrame(resizeFrame);
         resizeFrame = window.requestAnimationFrame(
@@ -236,12 +272,51 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
       window.clearTimeout(settleTimer);
       window.clearTimeout(interactionTimer);
       window.clearInterval(hashInterval);
+      delete document.documentElement.dataset.hashRestoring;
       window.removeEventListener("wheel", stopHashRestore);
       window.removeEventListener("touchstart", stopHashRestore);
       window.removeEventListener("pointerdown", stopHashRestore);
       window.removeEventListener(introEvents.ready, restoreAfterSceneReady);
     };
   }, [active]);
+
+  useLayoutEffect(() => {
+    let restoreBehaviorFrame = 0;
+
+    const replayIntro = () => {
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+
+      restoreFocusRef.current = false;
+      preserveScrollRef.current = false;
+      resetScrollRef.current = true;
+      requestedHashRef.current = "";
+      delete root.dataset.requestedHash;
+      root.dataset.introState = "locked";
+
+      if (window.location.hash) {
+        window.history.replaceState(
+          window.history.state,
+          "",
+          `${window.location.pathname}${window.location.search}`,
+        );
+      }
+
+      root.style.scrollBehavior = "auto";
+      window.scrollTo({ behavior: "auto", left: 0, top: 0 });
+      setActive(true);
+
+      restoreBehaviorFrame = window.requestAnimationFrame(() => {
+        root.style.scrollBehavior = previousScrollBehavior;
+      });
+    };
+
+    window.addEventListener(introEvents.replay, replayIntro);
+    return () => {
+      window.cancelAnimationFrame(restoreBehaviorFrame);
+      window.removeEventListener(introEvents.replay, replayIntro);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (active || process.env.NODE_ENV !== "development") return;
@@ -337,7 +412,7 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
 
   return (
     <>
-      <SceneClient />
+      <SceneClient introActive={active} />
       {active ? (
         <>
           <div

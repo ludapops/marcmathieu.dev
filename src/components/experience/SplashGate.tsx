@@ -1,10 +1,10 @@
 "use client";
 
-import gsap from "gsap";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   dispatchMachineStart,
   dispatchMachineWind,
+  dispatchScenePrepare,
   introEvents,
   INTRO_HOLD_MS,
   INTRO_RESET_MS,
@@ -36,19 +36,41 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
   const startRef = useRef(0);
   const windRef = useRef(0);
   const phaseRef = useRef<Phase>("idle");
+  const readyRef = useRef(false);
   const keyboardRef = useRef(false);
   const restoreFocusRef = useRef(false);
   const completedRef = useRef(false);
   const swipeRef = useRef<SwipeState | null>(null);
-  const resetTweenRef = useRef<gsap.core.Tween | null>(null);
-  const introTweenRef = useRef<gsap.core.Tween | null>(null);
-  const revealTimelineRef = useRef<gsap.core.Timeline | null>(null);
+  const animationsRef = useRef(new Set<Animation>());
+  const handoffTimerRef = useRef(0);
   const [phase, setPhase] = useState<Phase>("idle");
   const [ready, setReady] = useState(false);
   const [reduced, setReduced] = useState(false);
   const [machineFailed, setMachineFailed] = useState(false);
-  const [touchEntry, setTouchEntry] = useState(false);
+  const [touchEntry, setTouchEntry] = useState(true);
   const staticMode = reduced || machineFailed;
+
+  const stopAnimations = useCallback(() => {
+    animationsRef.current.forEach((animation) => animation.cancel());
+    animationsRef.current.clear();
+  }, []);
+
+  const animate = useCallback(
+    (
+      element: Element | null | undefined,
+      keyframes: Keyframe[],
+      options: KeyframeAnimationOptions,
+    ) => {
+      if (!element) return null;
+      const animation = element.animate(keyframes, options);
+      animationsRef.current.add(animation);
+      void animation.finished
+        .catch(() => undefined)
+        .finally(() => animationsRef.current.delete(animation));
+      return animation;
+    },
+    [],
+  );
 
   const writeWind = useCallback((progress: number) => {
     windRef.current = progress;
@@ -65,23 +87,23 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
     cancelAnimationFrame(frameRef.current);
     phaseRef.current = "idle";
     setPhase("idle");
-    const state = { value: windRef.current };
-    resetTweenRef.current?.kill();
-    resetTweenRef.current = gsap.to(state, {
-      value: 0,
-      duration: INTRO_RESET_MS / 1000,
-      ease: "power2.out",
-      overwrite: true,
-      onUpdate: () => writeWind(state.value),
-    });
+    const initialWind = windRef.current;
+    const resetStartedAt = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min((now - resetStartedAt) / INTRO_RESET_MS, 1);
+      const eased = 1 - (1 - progress) ** 3;
+      writeWind(initialWind * (1 - eased));
+      if (progress < 1) frameRef.current = requestAnimationFrame(tick);
+    };
+    frameRef.current = requestAnimationFrame(tick);
   }, [writeWind]);
 
   const reveal = useCallback(
     (skipped: boolean, restoreFocus: boolean, preserveScroll = false) => {
       window.clearTimeout(watchdogRef.current);
+      window.clearTimeout(handoffTimerRef.current);
       cancelAnimationFrame(frameRef.current);
-      resetTweenRef.current?.kill();
-      introTweenRef.current?.kill();
+      stopAnimations();
 
       if (phaseRef.current !== "running") {
         phaseRef.current = "running";
@@ -112,77 +134,108 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
         if (completedRef.current) return;
         completedRef.current = true;
         window.clearTimeout(completionRef.current);
+        window.clearTimeout(handoffTimerRef.current);
         onComplete(restoreFocus, preserveScroll);
       };
-      const timeline = gsap.timeline({ onComplete: complete });
-      revealTimelineRef.current = timeline;
+      if (!staticMode && !skipped && content) {
+        content.style.opacity = "0";
+        content.style.transform = "translateY(18px)";
+      }
+      document.documentElement.dataset.introState = "revealing";
       completionRef.current = window.setTimeout(
         complete,
         staticMode || skipped ? 500 : 1650,
       );
 
       if (staticMode || skipped) {
-        timeline.to([root, backdrop], {
-          autoAlpha: 0,
-          duration: 0.34,
-          ease: "power2.out",
-        });
+        const duration = staticMode ? 140 : 340;
+        [root, backdrop].forEach((element) =>
+          animate(
+            element,
+            [{ opacity: 1 }, { opacity: 0 }],
+            { duration, easing: "ease-out", fill: "forwards" },
+          ),
+        );
         return;
       }
 
       if (!handoff || !handoffOrb || !content) {
-        timeline.to([root, backdrop], {
-          autoAlpha: 0,
-          duration: 0.5,
-          ease: "power2.out",
-        });
+        [root, backdrop].forEach((element) =>
+          animate(
+            element,
+            [{ opacity: 1 }, { opacity: 0 }],
+            { duration: 500, easing: "ease-out", fill: "forwards" },
+          ),
+        );
         return;
       }
 
-      gsap.set(content, { opacity: 0, y: 18 });
-      gsap.set(handoff, { autoAlpha: 1 });
-      gsap.set(handoffOrb, {
-        opacity: 1,
-        scale: 0.002,
-        xPercent: -50,
-        yPercent: -50,
-      });
+      handoff.style.visibility = "visible";
+      handoff.style.opacity = "1";
+      handoffOrb.style.opacity = "1";
+      handoffOrb.style.transform = "translate(-50%, -50%) scale(0.002)";
 
-      timeline
-        .to(
-          "[data-machine-copy]",
-          { opacity: 0, y: -10, duration: 0.22, ease: "power2.in" },
-          0,
-        )
-        .to(
-          handoffOrb,
-          {
-            scale: 1,
-            duration: 0.74,
-            ease: "power4.inOut",
-          },
-          0,
-        )
-        .set([backdrop, canvas], { opacity: 0 }, 0.7)
-        .set(sceneShell, { visibility: "hidden" }, 0.7)
-        .to(
-          handoffOrb,
-          { opacity: 0, duration: 0.48, ease: "power2.out" },
-          0.72,
-        )
-        .to(
-          content,
-          {
-            clearProps: "opacity,transform",
-            opacity: 1,
-            y: 0,
-            duration: 0.56,
-            ease: "power3.out",
-          },
-          0.72,
+      document
+        .querySelectorAll<HTMLElement>("[data-machine-copy]")
+        .forEach((element) =>
+          animate(
+            element,
+            [
+              { opacity: 1, transform: "translateY(0)" },
+              { opacity: 0, transform: "translateY(-10px)" },
+            ],
+            {
+              duration: 220,
+              easing: "cubic-bezier(0.55, 0, 1, 0.45)",
+              fill: "forwards",
+            },
+          ),
         );
+      animate(
+        handoffOrb,
+        [
+          { transform: "translate(-50%, -50%) scale(0.002)" },
+          { transform: "translate(-50%, -50%) scale(1)" },
+        ],
+        {
+          duration: 740,
+          easing: "cubic-bezier(0.76, 0, 0.24, 1)",
+          fill: "forwards",
+        },
+      );
+      animate(
+        handoffOrb,
+        [{ opacity: 1 }, { opacity: 0 }],
+        { delay: 720, duration: 480, easing: "ease-out", fill: "forwards" },
+      );
+      const contentAnimation = animate(
+        content,
+        [
+          { opacity: 0, transform: "translateY(18px)" },
+          { opacity: 1, transform: "translateY(0)" },
+        ],
+        {
+          delay: 720,
+          duration: 560,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          fill: "forwards",
+        },
+      );
+      void contentAnimation?.finished
+        .then(() => {
+          contentAnimation.cancel();
+          content.style.removeProperty("opacity");
+          content.style.removeProperty("transform");
+        })
+        .catch(() => undefined);
+
+      handoffTimerRef.current = window.setTimeout(() => {
+        backdrop?.style.setProperty("opacity", "0");
+        canvas?.style.setProperty("opacity", "0");
+        sceneShell?.style.setProperty("visibility", "hidden");
+      }, 700);
     },
-    [onComplete, staticMode],
+    [animate, onComplete, staticMode, stopAnimations],
   );
 
   const startMachine = useCallback(
@@ -192,7 +245,6 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       setPhase("running");
       restoreFocusRef.current = restoreFocus;
       cancelAnimationFrame(frameRef.current);
-      resetTweenRef.current?.kill();
       writeWind(1);
 
       if (pointerIdRef.current !== null) {
@@ -205,33 +257,50 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       }
 
       dispatchMachineStart({ skipped: false, reduced: false });
-      introTweenRef.current = gsap.to("[data-machine-control]", {
-        opacity: 0,
-        y: 14,
-        duration: 0.32,
-        ease: "power2.in",
-        pointerEvents: "none",
-      });
-      gsap.to("[data-machine-copy]", {
-        opacity: 0.42,
-        duration: 0.45,
-        ease: "power2.out",
-      });
+      const controls = document.querySelector<HTMLElement>(
+        "[data-machine-control]",
+      );
+      if (controls) controls.style.pointerEvents = "none";
+      animate(
+        controls,
+        [
+          { opacity: 1, transform: "translateY(0)" },
+          { opacity: 0, transform: "translateY(14px)" },
+        ],
+        {
+          duration: 320,
+          easing: "cubic-bezier(0.55, 0, 1, 0.45)",
+          fill: "forwards",
+        },
+      );
+      document
+        .querySelectorAll<HTMLElement>("[data-machine-copy]")
+        .forEach((element) =>
+          animate(
+            element,
+            [{ opacity: 1 }, { opacity: 0.42 }],
+            { duration: 450, easing: "ease-out", fill: "forwards" },
+          ),
+        );
 
       watchdogRef.current = window.setTimeout(
         () => reveal(false, restoreFocusRef.current),
         MACHINE_WATCHDOG_MS - 700,
       );
     },
-    [reveal, writeWind],
+    [animate, reveal, writeWind],
   );
 
   const wind = useCallback(
     (restoreFocus: boolean) => {
-      if (!active || !ready || staticMode || phaseRef.current === "running")
+      if (
+        !active ||
+        !readyRef.current ||
+        staticMode ||
+        phaseRef.current === "running"
+      )
         return;
       cancelAnimationFrame(frameRef.current);
-      resetTweenRef.current?.kill();
       startRef.current = performance.now() - windRef.current * INTRO_HOLD_MS;
       phaseRef.current = "winding";
       setPhase("winding");
@@ -247,10 +316,11 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       };
       frameRef.current = requestAnimationFrame(tick);
     },
-    [active, ready, startMachine, staticMode, writeWind],
+    [active, startMachine, staticMode, writeWind],
   );
 
   const release = useCallback(() => {
+    pointerIdRef.current = null;
     if (phaseRef.current === "winding") reset();
   }, [reset]);
 
@@ -260,9 +330,24 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
     const updateMotion = () => setReduced(query.matches);
     const updatePointer = () =>
       setTouchEntry(pointerQuery.matches || navigator.maxTouchPoints > 0);
-    const machineReady = () => setReady(true);
+    const machineReady = () => {
+      readyRef.current = true;
+      setReady(true);
+      window.requestAnimationFrame(() => {
+        if (pointerIdRef.current !== null) wind(false);
+        else if (keyboardRef.current) wind(true);
+      });
+    };
     const machineFailure = () => setMachineFailed(true);
     const machineComplete = () => reveal(false, restoreFocusRef.current);
+    const machineStateFrame = window.requestAnimationFrame(() => {
+      if (document.documentElement.dataset.machineReady === "true") {
+        machineReady();
+      }
+      if (document.documentElement.dataset.machineFailed === "true") {
+        machineFailure();
+      }
+    });
 
     updateMotion();
     updatePointer();
@@ -273,6 +358,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
     window.addEventListener(introEvents.failed, machineFailure);
     window.addEventListener(introEvents.webglFailed, machineFailure);
     return () => {
+      window.cancelAnimationFrame(machineStateFrame);
       query.removeEventListener("change", updateMotion);
       pointerQuery.removeEventListener("change", updatePointer);
       window.removeEventListener(introEvents.ready, machineReady);
@@ -280,7 +366,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       window.removeEventListener(introEvents.failed, machineFailure);
       window.removeEventListener(introEvents.webglFailed, machineFailure);
     };
-  }, [reveal]);
+  }, [reveal, wind]);
 
   useEffect(() => {
     if (!active || !touchEntry) return;
@@ -310,6 +396,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       event.preventDefault();
       if (!event.repeat) {
         keyboardRef.current = true;
+        dispatchScenePrepare();
         wind(true);
       }
     };
@@ -339,11 +426,10 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       cancelAnimationFrame(frameRef.current);
       window.clearTimeout(watchdogRef.current);
       window.clearTimeout(completionRef.current);
-      resetTweenRef.current?.kill();
-      introTweenRef.current?.kill();
-      revealTimelineRef.current?.kill();
+      window.clearTimeout(handoffTimerRef.current);
+      stopAnimations();
     },
-    [],
+    [stopAnimations],
   );
 
   const label =
@@ -414,24 +500,6 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
         swipeRef.current = null;
       }}
     >
-      <div className={styles.meta} data-machine-copy>
-        <span>Portfolio / 2026</span>
-        <span>Senior frontend engineer</span>
-      </div>
-
-      <div className={styles.identity} data-machine-copy>
-        <p>Marc Mathieu</p>
-        <span>Product decisions to production code</span>
-      </div>
-
-      <div className={styles.machineLabel} data-machine-copy aria-hidden="true">
-        <span>Wind</span>
-        <i />
-        <span>Cascade</span>
-        <i />
-        <span>Enter</span>
-      </div>
-
       <div className={styles.handoff} data-intro-handoff aria-hidden="true">
         <span className={styles.handoffOrb} data-intro-handoff-orb />
       </div>
@@ -441,11 +509,12 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
           className={styles.enter}
           type="button"
           ref={buttonRef}
-          aria-disabled={!ready && !staticMode}
+          aria-busy={!ready && !staticMode}
           onClick={() => staticMode && reveal(false, true)}
           onContextMenu={(event) => event.preventDefault()}
           onPointerDown={(event) => {
             if (staticMode || event.button !== 0) return;
+            dispatchScenePrepare();
             pointerIdRef.current = event.pointerId;
             try {
               event.currentTarget.setPointerCapture(event.pointerId);
@@ -455,7 +524,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
             wind(false);
           }}
           onPointerUp={release}
-          onPointerCancel={reset}
+          onPointerCancel={release}
           aria-describedby="machine-status"
         >
           <span
@@ -480,7 +549,9 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
                 ? touchEntry
                   ? "Swipe up to enter or hold for 0.9 seconds"
                   : "Wind for 0.9 seconds"
-                : "Setting the machine"}
+                : touchEntry
+                  ? "Swipe up to enter · Setting the machine"
+                  : "Setting the machine"}
         </span>
         <button
           className={styles.skip}

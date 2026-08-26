@@ -3,10 +3,36 @@ import { expect, type Page, test } from "@playwright/test";
 
 const splash = (page: Page) => page.locator("[data-intro-splash]");
 
-async function dismissIntro(page: Page) {
+async function prepareScene(page: Page) {
+  if (
+    (await splash(page).getAttribute("data-machine-ready")) !== "true"
+  ) {
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.dataset.introState,
+        ),
+      )
+      .toBe("locked");
+    await expect
+      .poll(
+        async () => {
+          await page.evaluate(() =>
+            window.dispatchEvent(new CustomEvent("portfolio:scene-prepare")),
+          );
+          return splash(page).getAttribute("data-machine-ready");
+        },
+        { timeout: 10_000 },
+      )
+      .toBe("true");
+  }
   await expect(
     page.locator('[data-intro-splash][data-machine-ready="true"]'),
   ).toBeVisible({ timeout: 10_000 });
+}
+
+async function dismissIntro(page: Page) {
+  await prepareScene(page);
   const enterPortfolio = page.getByRole("button", { name: "Enter portfolio" });
   if (await enterPortfolio.isVisible()) await enterPortfolio.click();
   else await page.getByRole("button", { name: "Skip intro" }).click();
@@ -18,6 +44,12 @@ async function setTransitionProgress(
   name: "AG1" | "Battlefield" | "BeautyNexos",
   progress: number,
 ) {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+  });
   const transition = page.getByRole("region", { name, exact: true });
   const bounds = await transition.evaluate((element) => {
     const rect = element.getBoundingClientRect();
@@ -55,6 +87,16 @@ test("locks the portfolio behind an accessible first-session entry", async ({
   const machineLabel = page.locator('[data-machine-copy][aria-hidden="true"]');
   await expect(machineLabel).toBeVisible();
   await expect(machineLabel).toHaveText(/Wind\s*Cascade\s*Enter/);
+  const touchViewport =
+    testInfo.project.name.startsWith("mobile") ||
+    testInfo.project.name === "tablet";
+  if (touchViewport) {
+    await expect(page.locator("canvas")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Preparing machine" }),
+    ).toBeFocused();
+  }
+  await prepareScene(page);
   await expect(
     page.getByRole("button", { name: "Hold to wind" }),
   ).toBeVisible();
@@ -71,9 +113,6 @@ test("locks the portfolio behind an accessible first-session entry", async ({
         .evaluate((node) => (node as HTMLElement).inert),
     )
     .toBe(true);
-  const touchViewport =
-    testInfo.project.name.startsWith("mobile") ||
-    testInfo.project.name === "tablet";
   if (touchViewport) {
     await expect
       .poll(() =>
@@ -95,6 +134,7 @@ test("locks the portfolio behind an accessible first-session entry", async ({
 test("suppresses the native context menu on the winding control", async ({
   page,
 }) => {
+  await prepareScene(page);
   const enter = page.getByRole("button", { name: "Hold to wind" });
   await expect(enter).toBeVisible();
 
@@ -116,6 +156,7 @@ test("suppresses the native context menu on the winding control", async ({
 });
 
 test("resets incomplete and cancelled pointer holds", async ({ page }) => {
+  await prepareScene(page);
   await expect(
     page.getByRole("button", { name: "Hold to wind" }),
   ).toBeVisible();
@@ -148,6 +189,7 @@ test("auto-launches the machine at full wind and enters after the key impact", a
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chromium", "WebGL progress check");
+  await prepareScene(page);
   await page.evaluate(() => {
     const stages: string[] = [];
     (window as Window & { __machineStages?: string[] }).__machineStages =
@@ -220,6 +262,7 @@ test("supports a continuous touch hold", async ({ page }, testInfo) => {
       testInfo.project.name !== "tablet",
     "Touch-path coverage",
   );
+  await prepareScene(page);
   await expect(
     page.getByRole("button", { name: "Hold to wind" }),
   ).toBeVisible();
@@ -318,9 +361,7 @@ test("clears a stale development scroll lock after mobile entry", async ({
     testInfo.project.name !== "mobile-chromium",
     "Chromium touch input check",
   );
-  await expect(
-    page.locator('[data-intro-splash][data-machine-ready="true"]'),
-  ).toBeVisible();
+  await expect(splash(page)).toBeVisible();
   await page.evaluate(() => {
     document.body.style.overflow = "hidden";
   });
@@ -362,6 +403,7 @@ test("tracks the intro reaction through phone-specific camera frames", async ({
     testInfo.project.name !== "mobile-chromium",
     "Phone camera progression check",
   );
+  await prepareScene(page);
   const canvas = page.locator("[data-machine-canvas]");
   await expect(canvas).toHaveAttribute("data-machine-frame", "opening");
   await page.evaluate(() => {
@@ -401,6 +443,7 @@ test("switches responsive scene presets without treating landscape phones as tab
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Phone viewport coverage");
+  await prepareScene(page);
   const canvas = page.locator("[data-machine-canvas]");
   await expect(canvas).toHaveAttribute("data-machine-viewport", "phone");
   await expect(canvas).toHaveAttribute("data-machine-frame", "opening");
@@ -410,6 +453,7 @@ test("switches responsive scene presets without treating landscape phones as tab
 
 test("uses the tablet scene preset", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "tablet", "Tablet viewport coverage");
+  await prepareScene(page);
   await expect(page.locator("[data-machine-canvas]")).toHaveAttribute(
     "data-machine-viewport",
     "tablet",
@@ -435,6 +479,37 @@ test("uses the compact tablet header and hero layout", async ({
   });
   expect(layout.navigationOverflow).toBe(0);
   expect(layout.heroHeight).toBeLessThan(layout.viewportHeight);
+});
+
+test("keeps compact navigation actions visible without horizontal overflow", async ({
+  page,
+}, testInfo) => {
+  await dismissIntro(page);
+
+  const navigation = page.getByRole("navigation", {
+    name: "Primary navigation",
+  });
+  await expect(
+    navigation.getByRole("link", { name: "Résumé", exact: true }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("button", { name: /Pause motion|Resume motion/ }),
+  ).toBeVisible();
+
+  if (testInfo.project.name === "mobile") {
+    await page.setViewportSize({ width: 844, height: 390 });
+  }
+
+  const layout = await page.evaluate(() => ({
+    navigationOverflow:
+      (document.querySelector("nav")?.scrollWidth ?? 1) -
+      (document.querySelector("nav")?.clientWidth ?? 0),
+    pageOverflow:
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  }));
+  expect(layout.navigationOverflow).toBe(0);
+  expect(layout.pageOverflow).toBe(0);
 });
 
 test("keeps touch viewports horizontally clipped and vertically scrollable", async ({
@@ -478,7 +553,13 @@ test("keeps touch viewports horizontally clipped and vertically scrollable", asy
       touchPoints: [],
     });
   } else {
-    await page.evaluate(() => window.scrollTo(0, 360));
+    await expect
+      .poll(async () => {
+        await page.evaluate(() => window.scrollTo(0, 360));
+        return page.evaluate(() => window.scrollY);
+      })
+      .toBeGreaterThan(0);
+    return;
   }
 
   await expect
@@ -547,6 +628,7 @@ test("supports Chrome device-mode mouse-to-touch dragging", async ({
 test("supports keyboard holds, Escape, and development reloads", async ({
   page,
 }) => {
+  await prepareScene(page);
   await expect(
     page.getByRole("button", { name: "Hold to wind" }),
   ).toBeFocused();
@@ -561,6 +643,7 @@ test("supports keyboard holds, Escape, and development reloads", async ({
 
   await page.reload();
   await expect(splash(page)).toBeVisible();
+  await prepareScene(page);
   await expect(
     page.getByRole("button", { name: "Hold to wind" }),
   ).toBeFocused();
@@ -603,10 +686,63 @@ test("keeps the intro machine active when reloading from a restored scroll posit
   await expect(page.locator("#top")).toBeInViewport();
 });
 
+test("replays the intro from the footer and returns to the top", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "WebGL replay check");
+  await dismissIntro(page);
+
+  const canvas = page.locator("[data-machine-canvas]");
+  await expect(canvas).toHaveAttribute("data-machine-mode", "idle");
+  await page.evaluate(() => {
+    window.sessionStorage.setItem("marc-portfolio-machine-intro-v3", "seen");
+    window.location.hash = "contact";
+  });
+  await expect(page.locator("#contact")).toBeInViewport();
+
+  await page.getByRole("button", { name: "Replay intro" }).click();
+
+  await expect(
+    page.getByRole("dialog", { name: "Portfolio introduction" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Hold to wind" }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("progressbar", { name: "Machine winding progress" }),
+  ).toHaveAttribute("aria-valuenow", "0");
+  await expect(canvas).toHaveAttribute("data-machine-mode", "intro");
+  await expect(canvas).toHaveAttribute("data-machine-frame", "opening");
+  await expect(canvas).not.toHaveAttribute("data-machine-stage");
+  await expect(page.locator("[data-scene-shell]")).toHaveCSS(
+    "visibility",
+    "visible",
+  );
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe("");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.sessionStorage.getItem("marc-portfolio-machine-intro-v3"),
+      ),
+    )
+    .toBe("seen");
+
+  await page.getByRole("button", { name: "Skip intro" }).click();
+  await expect(splash(page)).toBeHidden();
+  await expect(page.locator("#top")).toBeInViewport();
+  await expect(page.locator("#main-content")).toBeFocused();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
 test("preserves a requested hash after dismissal", async ({ page }) => {
   await page.goto("/#contact");
+  await page.reload();
   await dismissIntro(page);
   await expect(page.locator("#contact")).toBeInViewport({ timeout: 20_000 });
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe(
+    "#contact",
+  );
 });
 
 test("presents the positioning and all three case studies", async ({
@@ -655,6 +791,10 @@ test("presents the positioning and all three case studies", async ({
   await expect(
     page.getByRole("link", { name: "Résumé", exact: true }).first(),
   ).toHaveAttribute("href", "/Marc-Mathieu-Resume.pdf");
+
+  const resume = await page.request.get("/Marc-Mathieu-Resume.pdf");
+  expect(resume.ok()).toBe(true);
+  expect(resume.headers()["content-type"]).toContain("application/pdf");
 });
 
 test("all internal anchors resolve to elements", async ({ page }) => {
@@ -688,6 +828,17 @@ test("uses the static scene for reduced motion", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "Pause motion" }),
   ).toBeVisible();
+
+  await page
+    .getByRole("button", { name: "Replay intro" })
+    .scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: "Replay intro" }).click();
+  await expect(
+    page.getByRole("button", { name: "Enter portfolio" }),
+  ).toBeFocused();
+  await page.getByRole("button", { name: "Enter portfolio" }).click();
+  await expect(splash(page)).toBeHidden();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
 });
 
 test("falls back to a static entrance when WebGL is unavailable", async ({
@@ -709,9 +860,16 @@ test("falls back to a static entrance when WebGL is unavailable", async ({
   });
   await page.evaluate(() => sessionStorage.clear());
   await page.reload();
-  await expect(
-    page.getByRole("button", { name: "Enter portfolio" }),
-  ).toBeVisible();
+  await expect
+    .poll(async () => {
+      await page.evaluate(() =>
+        window.dispatchEvent(new CustomEvent("portfolio:scene-prepare")),
+      );
+      return page
+        .getByRole("button", { name: "Enter portfolio" })
+        .isVisible();
+    })
+    .toBe(true);
   await page.getByRole("button", { name: "Enter portfolio" }).click();
   await expect(splash(page)).toBeHidden();
 });
@@ -719,6 +877,7 @@ test("falls back to a static entrance when WebGL is unavailable", async ({
 test("falls back to a static entrance when the machine cannot initialize", async ({
   page,
 }) => {
+  await prepareScene(page);
   await expect(
     page.getByRole("button", { name: "Hold to wind" }),
   ).toBeVisible();
@@ -756,6 +915,7 @@ test("persists the visitor's motion choice", async ({ page }) => {
   ).toHaveAttribute("aria-pressed", "true");
 
   await page.reload();
+  await dismissIntro(page);
   await expect(
     page.getByRole("button", { name: "Resume motion" }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -1109,6 +1269,7 @@ test("@visual desktop splash", async ({ page }, testInfo) => {
 test("@visual mobile splash", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "Mobile splash baseline");
   await expect(page.getByText("Portfolio / 2026")).toBeVisible();
+  await prepareScene(page);
   await expect(page.locator("canvas")).toHaveCount(1);
   await page.waitForTimeout(300);
   await expect(page).toHaveScreenshot("splash-mobile.png", {
@@ -1168,6 +1329,7 @@ for (const chapter of [
 test("@visual tablet splash", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "tablet", "Tablet splash baseline");
   await expect(page.getByText("Portfolio / 2026")).toBeVisible();
+  await prepareScene(page);
   await expect(page.locator("canvas")).toHaveAttribute(
     "data-machine-viewport",
     "tablet",

@@ -41,7 +41,6 @@ export function CaseStudy({ project }: { project: Project }) {
           <Image
             alt={project.coverImage.alt}
             height={coverDimensions.height}
-            priority={project.id === "ag1"}
             sizes="(max-width: 1023px) 100vw, 92vw"
             src={project.coverImage.src}
             width={coverDimensions.width}

@@ -1,17 +1,34 @@
 import type { Metadata } from "next";
 import { Geist, Zilla_Slab } from "next/font/google";
 import { ExperienceShell } from "@/components/experience/ExperienceShell";
+import { IntroChrome } from "@/components/experience/IntroChrome";
 import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  preload: false,
 });
 
 const zillaSlab = Zilla_Slab({
   variable: "--font-zilla-slab",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: "500",
+  preload: false,
+});
+
+const zillaSlabRegular = Zilla_Slab({
+  variable: "--font-zilla-slab-regular",
+  subsets: ["latin"],
+  weight: "400",
+  preload: false,
+});
+
+const zillaSlabBold = Zilla_Slab({
+  variable: "--font-zilla-slab-bold",
+  subsets: ["latin"],
+  weight: "700",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -53,7 +70,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${zillaSlab.variable}`}
+      className={`${geistSans.variable} ${zillaSlab.variable} ${zillaSlabRegular.variable} ${zillaSlabBold.variable}`}
       data-intro-state="pending"
       suppressHydrationWarning
     >
@@ -64,10 +81,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           }}
         />
         <noscript>
-          <style>{`[data-intro-splash],[data-intro-backdrop]{display:none!important}[data-scene-shell]{z-index:1!important}`}</style>
+          <style>{`[data-intro-splash],[data-intro-backdrop],[data-intro-chrome]{display:none!important}[data-scene-shell]{z-index:1!important}[data-experience-content]{contain-intrinsic-size:none!important;content-visibility:visible!important;opacity:1!important;visibility:visible!important}`}</style>
         </noscript>
       </head>
       <body>
+        <IntroChrome />
         <ExperienceShell>{children}</ExperienceShell>
       </body>
     </html>
