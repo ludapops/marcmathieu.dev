@@ -30,7 +30,10 @@
 }
 
 .identity {
-  font-family: var(--font-display);
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-display-bold);
   font-weight: 700;
   letter-spacing: -0.03em;
 }
@@ -65,6 +68,13 @@
   text-transform: inherit;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.actions a,
+.actions button {
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
 }
 
 .links a,
@@ -107,6 +117,9 @@
 @media (max-width: 1023px) {
   .navigation {
     grid-template-columns: auto 1fr;
+    gap: clamp(0.75rem, 2.4vw, 1.5rem);
+    padding-right: max(var(--page-pad), env(safe-area-inset-right));
+    padding-left: max(var(--page-pad), env(safe-area-inset-left));
   }
 
   .links {
@@ -117,7 +130,16 @@
     gap: 1rem;
   }
 
-  .actions a {
-    display: none;
+}
+
+@media (max-width: 520px) {
+  .navigation {
+    gap: 0.65rem;
+  }
+
+  .actions {
+    gap: clamp(0.65rem, 3.5vw, 1rem);
+    font-size: 0.62rem;
+    letter-spacing: 0.055em;
   }
 }

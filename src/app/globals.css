@@ -7,6 +7,8 @@
   --line-strong: rgba(18, 18, 15, 0.48);
   --signal: #d8ff36;
   --font-display: var(--font-zilla-slab), Georgia, serif;
+  --font-display-regular: var(--font-zilla-slab-regular), Georgia, serif;
+  --font-display-bold: var(--font-zilla-slab-bold), Georgia, serif;
   --font-body: var(--font-geist-sans), Arial, sans-serif;
   --page-pad: clamp(1rem, 2.5vw, 2.5rem);
   --grid-gap: clamp(0.75rem, 1.2vw, 1.5rem);
@@ -51,6 +53,11 @@ html[data-intro-scroll-locked="true"] body {
   overflow: hidden;
 }
 
+html[data-hash-restoring="true"] {
+  overflow-anchor: none;
+  scroll-behavior: auto;
+}
+
 html[data-intro-state="pending"],
 html[data-intro-state="locked"] {
   background: #0c0d0b;
@@ -61,8 +68,17 @@ html[data-intro-state="locked"] [data-scene-shell] {
   z-index: 101;
 }
 
+html[data-intro-state="pending"] [data-experience-content],
+html[data-intro-state="locked"] [data-experience-content] {
+  contain-intrinsic-size: 0 1200vh;
+  content-visibility: hidden;
+  opacity: 0;
+  visibility: hidden;
+}
+
 html[data-intro-state="seen"] [data-intro-splash],
-html[data-intro-state="seen"] [data-intro-backdrop] {
+html[data-intro-state="seen"] [data-intro-backdrop],
+html[data-intro-state="seen"] [data-intro-chrome] {
   display: none;
 }
 
@@ -84,6 +100,12 @@ a:focus-visible,
 button:focus-visible {
   outline: 2px solid currentColor;
   outline-offset: 4px;
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --page-pad: clamp(1rem, 3.2vw, 2rem);
+  }
 }
 
 ::selection {

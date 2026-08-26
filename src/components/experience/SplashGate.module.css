@@ -1,5 +1,6 @@
 .backdrop,
-.splash {
+.splash,
+.chrome {
   position: fixed;
   inset: 0;
   opacity: 1;
@@ -16,7 +17,8 @@
   clip-path: inset(0);
 }
 
-.splash {
+.splash,
+.chrome {
   --machine-wind: 0;
   z-index: 102;
   display: grid;
@@ -29,7 +31,12 @@
   overflow: hidden;
   overscroll-behavior: none;
   color: #f2efe7;
+  font-family: Arial, sans-serif;
   isolation: isolate;
+}
+
+.chrome {
+  pointer-events: none;
 }
 
 .handoff {
@@ -77,11 +84,15 @@
 
 .identity p {
   max-width: 7ch;
-  font-family: var(--font-display);
+  font-family: Georgia, serif;
   font-size: clamp(3.8rem, 6.4vw, 7.2rem);
   font-weight: 500;
   letter-spacing: -0.065em;
   line-height: 0.8;
+}
+
+:global(html[data-machine-ready="true"]) .identity p {
+  font-family: var(--font-display);
 }
 
 .identity span {
@@ -128,6 +139,7 @@
 
 .controls {
   grid-column: 1 / 5;
+  grid-row: 3;
   align-self: end;
   justify-self: start;
   display: grid;
@@ -254,7 +266,8 @@
     background-size: 2.6rem 2.6rem;
   }
 
-  .splash {
+  .splash,
+  .chrome {
     grid-template-rows: auto 1fr auto;
     padding: max(1.1rem, env(safe-area-inset-top))
       max(1.1rem, env(safe-area-inset-right))

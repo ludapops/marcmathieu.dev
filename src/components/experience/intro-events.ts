@@ -27,6 +27,8 @@ export function shouldShowIntro({
 }
 
 export const introEvents = {
+  prepare: "portfolio:scene-prepare",
+  replay: "portfolio:intro-replay",
   ready: "portfolio:machine-ready",
   wind: "portfolio:machine-wind",
   start: "portfolio:machine-start",
@@ -41,7 +43,12 @@ export type MachineWindDetail = { progress: number };
 export type MachineStartDetail = { skipped: boolean; reduced: boolean };
 export type MachineStageDetail = { stage: MachineStage };
 
+export function dispatchScenePrepare() {
+  window.dispatchEvent(new CustomEvent(introEvents.prepare));
+}
+
 export function dispatchMachineReady() {
+  delete document.documentElement.dataset.machineFailed;
   document.documentElement.dataset.machineReady = "true";
   window.dispatchEvent(new CustomEvent(introEvents.ready));
 }
@@ -73,11 +80,17 @@ export function dispatchMachineComplete() {
 }
 
 export function dispatchMachineFailure() {
+  document.documentElement.dataset.machineFailed = "true";
   window.dispatchEvent(new CustomEvent(introEvents.failed));
 }
 
 export function dispatchMachineWebglFailure() {
+  document.documentElement.dataset.machineFailed = "true";
   window.dispatchEvent(new CustomEvent(introEvents.webglFailed));
+}
+
+export function dispatchIntroReplay() {
+  window.dispatchEvent(new CustomEvent(introEvents.replay));
 }
 
 export function dispatchIntroComplete() {

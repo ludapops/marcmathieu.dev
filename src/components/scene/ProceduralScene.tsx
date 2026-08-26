@@ -699,6 +699,78 @@ export function ProceduralScene() {
         limeLight.intensity = 11 + eased * 15;
         render();
       };
+
+      const replayIntro = () => {
+        if (renderer.getContext().isContextLost()) {
+          dispatchMachineWebglFailure();
+          return;
+        }
+
+        animations.forEach((animation) => animation.kill());
+        animations.clear();
+        introActive = true;
+        machineRunning = false;
+        activeChapter = -1;
+        activeProgress = 0;
+
+        introMachine.visible = true;
+        chapterMachine.visible = false;
+        chapterGroups.forEach((group) => {
+          group.visible = false;
+        });
+
+        launcher.position.set(-3.62, 0.9, 0);
+        lever.rotation.set(0, 0, 0);
+        plunger.position.x = 0.88;
+        spring.scale.set(1, 1, 1);
+        introRail.mesh.position.y = 0;
+        railTwin.position.y = 0;
+        limeBall.position.set(
+          introMachineLayout.marble.start.x,
+          introMachineLayout.marble.start.y,
+          0,
+        );
+        limeBall.rotation.set(0, 0, 0);
+        limeBall.scale.set(1, 1, 1);
+        dominoes.forEach((domino) => {
+          domino.rotation.set(0, 0, 0);
+          domino.scale.set(1, 1, 1);
+        });
+        seesaw.rotation.set(0, 0, 0);
+        seesaw.scale.set(1, 1, 1);
+        orangeBall.position.set(
+          introMachineLayout.orangeBall.x,
+          introMachineLayout.orangeBall.y,
+          0,
+        );
+        orangeBall.rotation.set(0, 0, 0);
+        orangeBall.scale.set(1, 1, 1);
+        enterKey.position.set(
+          introMachineLayout.enterKey.x,
+          introMachineLayout.enterKey.y,
+          0,
+        );
+        enterKey.rotation.set(0, 0, 0);
+        enterKey.scale.set(1, 1, 1);
+
+        delete canvas.dataset.machineAction;
+        delete canvas.dataset.machineChapter;
+        delete canvas.dataset.machineProgress;
+        delete canvas.dataset.machineStage;
+        canvas.dataset.machineMode = "intro";
+        canvas.hidden = false;
+        canvas.style.opacity = "1";
+        sceneShell?.style.removeProperty("clip-path");
+        if (sceneShell) sceneShell.style.visibility = "visible";
+        scopeRef.current
+          ?.closest<HTMLElement>("[data-scene-shell]")
+          ?.setAttribute("data-webgl", "ready");
+
+        setWind(0);
+        resize();
+        dispatchMachineReady();
+      };
+
       const animateCamera = (stage: MachineStage) => {
         const target = getIntroStageFrame(stage);
         canvas.dataset.machineFrame = stage;
@@ -1087,6 +1159,7 @@ export function ProceduralScene() {
       window.visualViewport?.addEventListener("resize", resize);
       window.addEventListener(introEvents.wind, windEvent);
       window.addEventListener(introEvents.start, startMachine);
+      window.addEventListener(introEvents.replay, replayIntro);
       window.addEventListener(introEvents.introComplete, finishIntro);
       window.addEventListener("portfolio:motion", motion);
       document.addEventListener("visibilitychange", visibility);
@@ -1100,6 +1173,7 @@ export function ProceduralScene() {
         window.visualViewport?.removeEventListener("resize", resize);
         window.removeEventListener(introEvents.wind, windEvent);
         window.removeEventListener(introEvents.start, startMachine);
+        window.removeEventListener(introEvents.replay, replayIntro);
         window.removeEventListener(introEvents.introComplete, finishIntro);
         window.removeEventListener("portfolio:motion", motion);
         document.removeEventListener("visibilitychange", visibility);

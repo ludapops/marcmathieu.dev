@@ -60,6 +60,7 @@
 .hero h1 span {
   display: block;
   margin-left: 0.56em;
+  font-family: var(--font-display-regular);
   font-style: italic;
   font-weight: 400;
 }
@@ -73,6 +74,7 @@
 
 .heroActions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.7rem;
   margin-top: 2rem;
@@ -277,8 +279,9 @@
 }
 
 .contact footer {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
   gap: 2rem;
   margin-top: clamp(4rem, 9vw, 9rem);
   padding-top: 1rem;
@@ -286,6 +289,29 @@
   font-size: 0.68rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.contact footer p:last-child {
+  text-align: right;
+}
+
+.replayIntro {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.28em;
+  cursor: pointer;
+}
+
+.replayIntro:hover,
+.replayIntro:focus-visible {
+  color: var(--signal);
 }
 
 @media (max-width: 900px) {
@@ -376,6 +402,29 @@
   }
 
   .contact footer {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  .contact footer p:last-child {
+    text-align: left;
+  }
+}
+
+@media (max-width: 900px) and (max-height: 520px) {
+  .hero {
+    padding-bottom: 1.5rem;
+  }
+
+  .heroCopy {
+    padding: 1.75rem 0 0;
+  }
+
+  .hero h1 {
+    font-size: clamp(3.4rem, 10vw, 5rem);
+  }
+
+  .intro,
+  .heroActions {
+    margin-top: 1rem;
   }
 }

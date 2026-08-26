@@ -1,4 +1,5 @@
 import { CaseStudy } from "@/components/case-study/CaseStudy";
+import { ReplayIntroButton } from "@/components/experience/ReplayIntroButton";
 import { ProjectIndex } from "@/components/project-index/ProjectIndex";
 import { SceneTransition } from "@/components/scene/SceneTransition";
 import { career, contactLinks, projects } from "@/content/portfolio";
@@ -141,6 +142,7 @@ export default function Home() {
         </div>
         <footer>
           <p>Miami-based · Remote US · Miami or New York hybrid</p>
+          <ReplayIntroButton className={styles.replayIntro} />
           <p>© 2026 Marc Mathieu</p>
         </footer>
       </section>
