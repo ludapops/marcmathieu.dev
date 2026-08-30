@@ -135,6 +135,8 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
         completedRef.current = true;
         window.clearTimeout(completionRef.current);
         window.clearTimeout(handoffTimerRef.current);
+        content?.style.removeProperty("opacity");
+        content?.style.removeProperty("transform");
         onComplete(restoreFocus, preserveScroll);
       };
       if (!staticMode && !skipped && content) {
