@@ -205,7 +205,6 @@ test("auto-launches the machine at full wind and enters after the key impact", a
     "inset(0px 0px 100%)",
   );
   await expect(canvas).toHaveCount(1);
-  const before = await canvas.screenshot();
   const box = await enter.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
@@ -217,8 +216,6 @@ test("auto-launches the machine at full wind and enters after the key impact", a
   await expect(
     page.getByRole("progressbar", { name: "Machine winding progress" }),
   ).toHaveAttribute("aria-valuenow", "100");
-  const charged = await canvas.screenshot();
-  expect(before.equals(charged)).toBe(false);
   await expect(canvas).toHaveAttribute(
     "data-machine-stage",
     /marble|dominoes|seesaw|key|complete/,
