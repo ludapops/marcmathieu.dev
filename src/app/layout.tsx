@@ -14,7 +14,7 @@ const zillaSlab = Zilla_Slab({
   variable: "--font-zilla-slab",
   subsets: ["latin"],
   weight: "500",
-  preload: false,
+  preload: true,
 });
 
 const zillaSlabRegular = Zilla_Slab({

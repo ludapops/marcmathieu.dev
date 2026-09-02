@@ -84,15 +84,17 @@
 
 .identity p {
   max-width: 7ch;
-  font-family: Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(3.8rem, 6.4vw, 7.2rem);
   font-weight: 500;
   letter-spacing: -0.065em;
   line-height: 0.8;
+  opacity: 0;
+  transition: opacity 200ms ease;
 }
 
-:global(html[data-machine-ready="true"]) .identity p {
-  font-family: var(--font-display);
+:global(html[data-intro-fonts="ready"]) .identity p {
+  opacity: 1;
 }
 
 .identity span {
@@ -332,4 +334,10 @@
 :global(html[data-intro-touch-scroll="true"]) .splash {
   overscroll-behavior-y: auto;
   touch-action: pan-y;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .identity p {
+    transition: none;
+  }
 }
