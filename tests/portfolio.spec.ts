@@ -871,6 +871,41 @@ test("falls back to a static entrance when WebGL is unavailable", async ({
   await expect(splash(page)).toBeHidden();
 });
 
+test("renders the splash headline in the display font before the machine is ready", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const prototype = HTMLCanvasElement.prototype as unknown as {
+      getContext: (...args: unknown[]) => unknown;
+    };
+    const original = prototype.getContext;
+    prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: unknown,
+      ...args: unknown[]
+    ) {
+      if (type === "webgl" || type === "webgl2") return null;
+      return original.call(this, type, ...args);
+    };
+  });
+  await page.goto("/");
+
+  const headline = page.locator("[data-intro-chrome] p").first();
+  await expect(headline).toBeAttached();
+  const fontFamily = await headline.evaluate((element) =>
+    getComputedStyle(element).fontFamily,
+  );
+  expect(fontFamily).toMatch(/Zilla/i);
+  expect(fontFamily).not.toMatch(/Arial/i);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.dataset.introFonts),
+    )
+    .toBe("ready");
+  await expect(headline).toHaveCSS("opacity", "1");
+});
+
 test("falls back to a static entrance when the machine cannot initialize", async ({
   page,
 }) => {
