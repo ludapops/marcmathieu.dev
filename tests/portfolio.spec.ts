@@ -867,27 +867,17 @@ test("falls back to a static entrance when WebGL is unavailable", async ({
         .isVisible();
     })
     .toBe(true);
+  await expect(page.locator("[data-intro-identity]")).toHaveCSS(
+    "opacity",
+    "1",
+  );
   await page.getByRole("button", { name: "Enter portfolio" }).click();
   await expect(splash(page)).toBeHidden();
 });
 
-test("renders the splash headline in the display font before the machine is ready", async ({
+test("renders the splash headline in the display font and reveals it when the machine is ready", async ({
   page,
-}) => {
-  await page.addInitScript(() => {
-    const prototype = HTMLCanvasElement.prototype as unknown as {
-      getContext: (...args: unknown[]) => unknown;
-    };
-    const original = prototype.getContext;
-    prototype.getContext = function (
-      this: HTMLCanvasElement,
-      type: unknown,
-      ...args: unknown[]
-    ) {
-      if (type === "webgl" || type === "webgl2") return null;
-      return original.call(this, type, ...args);
-    };
-  });
+}, testInfo) => {
   await page.goto("/");
 
   const headline = page.locator("[data-intro-chrome] p").first();
@@ -898,12 +888,15 @@ test("renders the splash headline in the display font before the machine is read
   expect(fontFamily).toMatch(/Zilla/i);
   expect(fontFamily).not.toMatch(/Arial/i);
 
-  await expect
-    .poll(() =>
-      page.evaluate(() => document.documentElement.dataset.introFonts),
-    )
-    .toBe("ready");
-  await expect(headline).toHaveCSS("opacity", "1");
+  const identity = page.locator("[data-intro-identity]");
+  const touchViewport =
+    testInfo.project.name.startsWith("mobile") ||
+    testInfo.project.name === "tablet";
+  if (touchViewport) {
+    await expect(identity).toHaveCSS("opacity", "0");
+  }
+  await prepareScene(page);
+  await expect(identity).toHaveCSS("opacity", "1");
 });
 
 test("falls back to a static entrance when the machine cannot initialize", async ({

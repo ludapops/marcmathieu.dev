@@ -8,7 +8,7 @@ export function IntroChrome() {
         <span>Senior frontend engineer</span>
       </div>
 
-      <div className={styles.identity} data-machine-copy>
+      <div className={styles.identity} data-intro-identity data-machine-copy>
         <p>Marc Mathieu</p>
         <span>Product decisions to production code</span>
       </div>

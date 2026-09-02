@@ -46,24 +46,6 @@ export function ExperienceShell({ children }: ExperienceShellProps) {
   const [motionReady, setMotionReady] = useState(false);
 
   useLayoutEffect(() => {
-    const root = document.documentElement;
-    if (root.dataset.introFonts === "ready") return;
-    let cancelled = false;
-    const reveal = () => {
-      if (!cancelled) root.dataset.introFonts = "ready";
-    };
-    const fallbackTimer = window.setTimeout(reveal, 2000);
-    document.fonts.ready.then(() => {
-      window.clearTimeout(fallbackTimer);
-      reveal();
-    });
-    return () => {
-      cancelled = true;
-      window.clearTimeout(fallbackTimer);
-    };
-  }, []);
-
-  useLayoutEffect(() => {
     const navigation = performance.getEntriesByType("navigation")[0] as
       PerformanceNavigationTiming | undefined;
     if (window.location.hash) {

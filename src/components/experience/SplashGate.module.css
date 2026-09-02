@@ -80,6 +80,12 @@
   z-index: 1;
   margin-top: 11vh;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+:global(html[data-machine-ready="true"]) .identity {
+  opacity: 1;
 }
 
 .identity p {
@@ -89,12 +95,6 @@
   font-weight: 500;
   letter-spacing: -0.065em;
   line-height: 0.8;
-  opacity: 0;
-  transition: opacity 200ms ease;
-}
-
-:global(html[data-intro-fonts="ready"]) .identity p {
-  opacity: 1;
 }
 
 .identity span {
@@ -337,7 +337,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .identity p {
+  .identity {
     transition: none;
   }
 }

@@ -327,6 +327,11 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
   }, [reset]);
 
   useEffect(() => {
+    if (!staticMode) return;
+    document.documentElement.dataset.machineReady = "true";
+  }, [staticMode]);
+
+  useEffect(() => {
     const query = window.matchMedia("(prefers-reduced-motion: reduce)");
     const pointerQuery = window.matchMedia("(pointer: coarse)");
     const updateMotion = () => setReduced(query.matches);
