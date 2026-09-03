@@ -74,9 +74,6 @@ export function ProceduralScene() {
         dispatchMachineWebglFailure();
         return;
       }
-      scopeRef.current
-        ?.closest<HTMLElement>("[data-scene-shell]")
-        ?.setAttribute("data-webgl", "ready");
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 100);
@@ -512,6 +509,7 @@ export function ProceduralScene() {
       let activeChapter = -1;
       let activeProgress = 0;
       let renderFrame = 0;
+      let openingFrame = 0;
       let viewportKind: SceneViewport = getSceneViewport(
         window.innerWidth,
         window.innerHeight,
@@ -546,7 +544,7 @@ export function ProceduralScene() {
       chapterMachine.visible = !introActive;
       introMachine.visible = introActive;
       canvas.dataset.machineMode = introActive ? "intro" : "idle";
-      canvas.style.opacity = introActive ? "1" : "0";
+      canvas.style.opacity = "0";
       canvas.dataset.machineViewport = viewportKind;
 
       const getViewportSize = () => ({
@@ -759,7 +757,6 @@ export function ProceduralScene() {
         delete canvas.dataset.machineStage;
         canvas.dataset.machineMode = "intro";
         canvas.hidden = false;
-        canvas.style.opacity = "1";
         sceneShell?.style.removeProperty("clip-path");
         if (sceneShell) sceneShell.style.visibility = "visible";
         scopeRef.current
@@ -768,6 +765,8 @@ export function ProceduralScene() {
 
         setWind(0);
         resize();
+        renderNow();
+        canvas.style.opacity = "1";
         dispatchMachineReady();
       };
 
@@ -1154,7 +1153,15 @@ export function ProceduralScene() {
       };
 
       resize();
-      if (introActive) dispatchMachineReady();
+      // Paint the assembled opening frame before revealing the canvas, so the
+      // first visible frame never shows an un-posed machine.
+      renderNow();
+      openingFrame = requestAnimationFrame(() => {
+        openingFrame = 0;
+        if (introActive) canvas.style.opacity = "1";
+        sceneShell?.setAttribute("data-webgl", "ready");
+        if (introActive) dispatchMachineReady();
+      });
       window.addEventListener("resize", resize);
       window.visualViewport?.addEventListener("resize", resize);
       window.addEventListener(introEvents.wind, windEvent);
@@ -1167,6 +1174,7 @@ export function ProceduralScene() {
 
       return () => {
         cancelAnimationFrame(renderFrame);
+        cancelAnimationFrame(openingFrame);
         triggers.forEach((trigger) => trigger.kill());
         animations.forEach((animation) => animation.kill());
         window.removeEventListener("resize", resize);
