@@ -245,6 +245,20 @@
   text-transform: uppercase;
 }
 
+.splash[data-machine-ready="false"] .counter {
+  animation: counter-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes counter-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .skip {
   padding: 0.3rem;
   border: 0;

@@ -6,6 +6,7 @@
   --line: rgba(18, 18, 15, 0.16);
   --line-strong: rgba(18, 18, 15, 0.48);
   --signal: #d8ff36;
+  --machine-veil: #0b0c0a;
   --font-display: var(--font-zilla-slab), Georgia, serif;
   --font-display-regular: var(--font-zilla-slab-regular), Georgia, serif;
   --font-display-bold: var(--font-zilla-slab-bold), Georgia, serif;
