@@ -153,12 +153,21 @@ export function buildMachine(
     );
   };
   const baseY = kind === "intro" ? -1.05 : -1.95;
-  const span = kind === "intro" ? 3.9 : compact ? 1.85 : 3.0;
-  box(span * 2, 0.18, 1.3, 0, baseY, m.wood);
-  box(span * 2, 0.055, 1.34, 0, baseY - 0.11, m.edge);
+  const span = kind === "intro" ? 4.7 : compact ? 1.85 : 3.0;
+  box(span * 2, 0.18, 1.3, kind === "intro" ? 0.5 : 0, baseY, m.wood);
+  box(span * 2, 0.055, 1.34, kind === "intro" ? 0.5 : 0, baseY - 0.11, m.edge);
   [-span + 0.24, span - 0.24].forEach((x) => {
     for (const z of [-0.42, 0.42])
-      box(0.24, 0.16, 0.24, x, baseY - 0.2, m.edge, group, z);
+      box(
+        0.24,
+        0.16,
+        0.24,
+        x + (kind === "intro" ? 0.5 : 0),
+        baseY - 0.2,
+        m.edge,
+        group,
+        z,
+      );
   });
   const support = (x: number, y: number, z = -0.26) => {
     rod(

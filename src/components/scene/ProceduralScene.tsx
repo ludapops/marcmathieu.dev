@@ -199,9 +199,12 @@ export function ProceduralScene() {
               ? -2.6
               : p < 0.58
                 ? THREE.MathUtils.lerp(-2.6, 0.45, clamp((p - 0.26) / 0.22))
-                : THREE.MathUtils.lerp(0.45, 2.25, clamp((p - 0.58) / 0.15));
+                : THREE.MathUtils.lerp(0.45, 3.0, clamp((p - 0.58) / 0.15));
           center.y = 0.3;
-          width = p < 0.26 ? 3.7 : 4.1;
+          width =
+            p < 0.26
+              ? 3.7
+              : THREE.MathUtils.lerp(4.1, 4.8, clamp((p - 0.58) / 0.15));
           height = 3.3;
         }
         const distance = fitPerspectiveDistance({

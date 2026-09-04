@@ -171,3 +171,37 @@ it("releases from the cup, lands on the key, and resets without history", () => 
     introLayout.key.y + 0.24 + MARBLE_RADIUS - 0.1,
   );
 });
+
+it("keeps falling domino solids separated throughout the cascade", () => {
+  const {
+    dominoWidth: width,
+    dominoHeight: height,
+    dominoGap: gap,
+  } = introLayout;
+  const corners = (index: number, angle: number) =>
+    [-width / 2, width / 2].flatMap((x) =>
+      [0, height].map((y) =>
+        rotatePoint({ x: index * gap, y: 0 }, { x, y }, angle),
+      ),
+    );
+  for (let frame = 0; frame <= 4000; frame++) {
+    const angles = sampleIntro(frame / 4000).dominoes;
+    for (let i = 0; i < angles.length - 1; i++) {
+      const a = corners(i, angles[i]);
+      const b = corners(i + 1, angles[i + 1]);
+      const axes = [angles[i], angles[i + 1]].flatMap((angle) => [
+        { x: Math.cos(angle), y: Math.sin(angle) },
+        { x: -Math.sin(angle), y: Math.cos(angle) },
+      ]);
+      const separated = axes.some((axis) => {
+        const pa = a.map((point) => point.x * axis.x + point.y * axis.y);
+        const pb = b.map((point) => point.x * axis.x + point.y * axis.y);
+        return (
+          Math.max(...pa) <= Math.min(...pb) + 1e-9 ||
+          Math.max(...pb) <= Math.min(...pa) + 1e-9
+        );
+      });
+      expect(separated, `domino ${i} at progress ${frame / 4000}`).toBe(true);
+    }
+  }
+});

@@ -225,7 +225,9 @@ export const introLayout = {
   dominoStart: -0.55,
   dominoGap: 0.42,
   dominoCount: 5,
-  key: { x: 2.85, y: -0.46 },
+  dominoWidth: 0.126,
+  dominoHeight: 0.7,
+  key: { x: 4.4, y: -0.46 },
   launcherPivot: { x: 1.85, y: -0.2 },
   launcherCup: { x: -0.38, y: 0.18 },
   releaseAngle: -1.2,
@@ -239,8 +241,20 @@ export function sampleIntro(progress: number) {
   const lever = -0.85 * ease(phase(p, 0.35, 0.43));
   const dominoes = Array.from(
     { length: introLayout.dominoCount },
-    (_, i) => -1.22 * ease(phase(p, 0.42 + i * 0.061, 0.5 + i * 0.061)),
+    (_, i) => 1.22 * ease(phase(p, 0.42 + i * 0.061, 0.5 + i * 0.061)),
   );
+  // Resolve back to front: each top corner stops at the next domino's near face.
+  const halfWidth = introLayout.dominoWidth / 2;
+  const diagonal = Math.hypot(introLayout.dominoHeight, halfWidth);
+  for (let i = dominoes.length - 2; i >= 0; i--) {
+    const next = dominoes[i + 1];
+    const clearance = introLayout.dominoGap * Math.cos(next) - halfWidth;
+    const contact =
+      next +
+      Math.asin(clearance / diagonal) -
+      Math.atan2(halfWidth, introLayout.dominoHeight);
+    dominoes[i] = Math.min(dominoes[i], contact);
+  }
   const launcherAngle =
     introLayout.releaseAngle * ease(phase(seconds, 5.2, 5.5));
   const release = rotatePoint(
@@ -279,7 +293,7 @@ export function sampleIntro(progress: number) {
   return {
     ball,
     lever,
-    dominoes,
+    dominoes: dominoes.map((angle) => -angle),
     launcherAngle,
     projectile,
     latch: ease(phase(seconds, 5.11, 5.2)),
