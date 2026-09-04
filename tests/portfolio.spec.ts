@@ -1414,3 +1414,65 @@ test("@visual landscape tablet finale", async ({ page }, testInfo) => {
     mask: [page.locator("nextjs-portal")],
   });
 });
+
+test("reserves space for the intro identity", async ({ page }, testInfo) => {
+  await prepareScene(page);
+  if (testInfo.project.name === "chromium")
+    await page.setViewportSize({ width: 1728, height: 925 });
+  await page.waitForTimeout(400);
+  const layout = await page.evaluate(() => {
+    const identity = document
+      .querySelector("[data-intro-identity]")
+      ?.getBoundingClientRect();
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      "[data-machine-canvas]",
+    );
+    const controls = document
+      .querySelector("[data-machine-control]")
+      ?.getBoundingClientRect();
+    if (!identity || !canvas || !controls)
+      throw new Error("Missing intro layout");
+    return {
+      identityRight: identity.right,
+      identityBottom: identity.bottom,
+      controlsTop: controls.top,
+      left: Number(canvas.dataset.machineViewportLeft),
+      top: Number(canvas.dataset.machineViewportTop),
+      height: Number(canvas.dataset.machineViewportHeight),
+      sideBySide: innerWidth >= 800 && innerWidth / innerHeight > 1.3,
+    };
+  });
+  if (layout.sideBySide)
+    expect(layout.left).toBeGreaterThan(layout.identityRight + 16);
+  else {
+    expect(layout.top).toBeGreaterThan(layout.identityBottom + 16);
+    expect(layout.top + layout.height).toBeLessThan(layout.controlsTop - 16);
+  }
+});
+
+test("keeps a fixed chapter scale and matching handoffs through scroll", async ({
+  page,
+}) => {
+  await dismissIntro(page);
+  const canvas = page.locator("[data-machine-canvas]");
+  const names = ["AG1", "Battlefield", "BeautyNexos", "Finish"] as const;
+  let expectedScale: number | undefined;
+  let lastExit: number | undefined;
+  for (const name of names) {
+    await setTransitionProgress(page, name, 0.05);
+    if (lastExit !== undefined)
+      expect(
+        Number(await canvas.getAttribute("data-machine-ball-x")),
+      ).toBeCloseTo(lastExit, 4);
+    for (const progress of [0.2, 0.5, 0.8, 0.5]) {
+      await setTransitionProgress(page, name, progress);
+      const scale = Number(
+        await canvas.getAttribute("data-machine-pixels-per-unit"),
+      );
+      expectedScale ??= scale;
+      expect(scale).toBeCloseTo(expectedScale, 5);
+    }
+    await setTransitionProgress(page, name, 0.95);
+    lastExit = Number(await canvas.getAttribute("data-machine-ball-x"));
+  }
+});

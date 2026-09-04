@@ -71,11 +71,11 @@ Each chapter states context and dates, role and team boundary, product problem, 
 
 The intro lasts seven seconds after winding. A spring launches a marble into a trigger lever and domino cascade. The last domino releases a counterweight onto the Enter key, revealing the portfolio. Skip remains available while the machine runs.
 
-The existing transitions before AG1, Battlefield, and BeautyNexos contain a tipping cup, counterweight gate with switchback rails, and balance transfer. Each action ends in a resting state. A fourth transition between About and Contact releases a striker onto a bell, then settles without audio or confetti.
+The transitions form a continuous route for one green marble: AG1 travels left to right through a tipping cup; Battlefield receives it at the right and returns it left through a counterweight gate and switchback rails; BeautyNexos receives it at the left and tips a weighted chute to send it right. Matching brass entrance and exit chutes use the same horizontal coordinates. A fourth transition between About and Contact receives the marble from the right and releases a striker onto a bell, then settles without audio or confetti.
 
 Visible rails, pivots, cups, and cords explain each transfer of motion. Shared materials and receiving points connect the separate chapter mechanisms. The chapter sequences scrub in both directions and remain still in Reading Zones.
 
-Portrait phones use shorter tracks, and the intro camera follows overlapping working areas so contact points remain readable. Tablet and landscape layouts fit the complete chapter mechanism while reserving space for navigation and labels. Keyboard operation, touch controls, replay, reduced motion, and the static fallback remain release requirements.
+The intro occupies a dedicated region beside the identity on wide screens and below it on portrait screens. Portrait phones use shorter tracks, and the intro camera follows overlapping working areas so contact points remain readable. Every chapter uses the same world bounds and camera scale. The stage moves with the document and clips naturally at screen edges; scrolling never changes its scale. Stage sizing uses stable viewport units, with a new fit only when the layout resizes. Keyboard operation, touch controls, replay, reduced motion, and the static fallback remain release requirements.
 
 ## Technical shape
 

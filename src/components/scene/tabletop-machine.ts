@@ -11,7 +11,10 @@ import {
   sampleCup,
   sampleGate,
   sampleIntro,
-  rotatePoint,
+  chapterDirection,
+  chapterSpan,
+  HANDOFF_TOP,
+  HANDOFF_BOTTOM,
   type MachineKind,
   type Point,
 } from "./mechanics";
@@ -148,12 +151,7 @@ export function buildMachine(
       parent,
     );
   };
-  const baseY =
-    kind === "counterweight-gate"
-      ? -1.95
-      : kind === "balance-transfer"
-        ? -1.5
-        : -1.05;
+  const baseY = kind === "intro" ? -1.05 : -1.95;
   const span = kind === "intro" ? 3.9 : compact ? 1.85 : 3.0;
   box(span * 2, 0.18, 1.3, 0, baseY, m.wood);
   box(span * 2, 0.055, 1.34, 0, baseY - 0.11, m.edge);
@@ -190,9 +188,6 @@ export function buildMachine(
     cap.rotation.x = Math.PI / 2;
     support(pivot.x, pivot.y);
   };
-  const catchBall = (point: Point) => {
-    box(0.11, 0.32, 0.42, point.x + 0.2, point.y - 0.05, m.brass);
-  };
   const cup = (
     x: number,
     y: number,
@@ -220,14 +215,27 @@ export function buildMachine(
     object.position.set(point.x, point.y, 0);
     object.rotation.z = point.rotation;
   };
-  const lead = ball();
+  const lead = ball(m.green);
+  lead.name = "story-marble";
+  if (kind !== "intro") {
+    const edge = chapterSpan(compact);
+    for (const [x, y] of [
+      [-edge, HANDOFF_TOP],
+      ...(kind === "bell" ? [] : [[edge, HANDOFF_BOTTOM]]),
+    ]) {
+      const collar = mesh(
+        new THREE.CylinderGeometry(0.24, 0.2, 0.32, 24, 1, true),
+        m.brass,
+      );
+      collar.position.set(x, y - 0.02, 0);
+    }
+  }
   let pose: (progress: number, wind?: number) => void;
 
   if (kind === "tipping-cup") {
     const layout = cupLayout(compact);
     rail(layout.incoming);
     rail(layout.outgoing);
-    catchBall(layout.outgoing[2]);
     const tipping = new THREE.Group();
     tipping.position.set(layout.pivot.x, layout.pivot.y, 0);
     group.add(tipping);
@@ -244,7 +252,6 @@ export function buildMachine(
     const layout = gateLayout(compact);
     rail(layout.incoming);
     rail(layout.outgoing);
-    catchBall(layout.outgoing.at(-1)!);
     const lever = new THREE.Group();
     group.add(lever);
     lever.position.set(layout.pivot.x, layout.pivot.y, 0);
@@ -290,24 +297,17 @@ export function buildMachine(
     beam.position.set(0, 0.1, 0);
     group.add(beam);
     box(2.2, 0.1, 0.4, 0, 0, m.brass, beam);
-    cup(-0.9, -0.01, beam);
-    const tray = new THREE.Group();
-    group.add(tray);
-    box(0.45, 0.07, 0.4, 0, 0, accent, tray);
-    box(0.055, 0.2, 0.4, -0.22, 0.085, accent, tray);
-    const trayPin = cylinder(0.065, 0.46, 0, 0, m.brass, tray);
-    trayPin.rotation.x = Math.PI / 2;
+    box(0.07, 0.24, 0.4, -1.03, 0.1, accent, beam);
+    // The loaded counterweight tips the released chute; the same marble crosses it.
+    cylinder(0.22, 0.35, 0.85, -0.34, m.edge, beam);
+    box(0.045, 0.35, 0.08, 0.85, -0.17, m.brass, beam);
+    const latch = box(0.08, 0.36, 0.25, -0.65, -0.05, accent);
     axle(layout.pivot);
-    const payload = ball(m.ivory);
     pose = (p) => {
       const state = sampleBalance(p, compact);
       beam.rotation.z = state.angle;
-      const held = rotatePoint(layout.pivot, layout.payload, state.angle);
-      tray.position.set(held.x, held.y - 0.195, 0);
-      tray.rotation.z = -0.1;
-
+      latch.rotation.z = Math.min(1, Math.max(0, (p - 0.3) / 0.03)) * 0.6;
       position(lead, state.ball);
-      position(payload, state.secondary);
     };
   } else if (kind === "bell") {
     const layout = bellLayout(compact);
@@ -448,6 +448,7 @@ export function buildMachine(
       plunger.position.x = -3.36 - compression * 0.35;
     };
   }
+  group.scale.x = chapterDirection(kind);
   pose(0);
   const bounds = new THREE.Box3().setFromObject(group);
   return {

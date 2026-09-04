@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   balanceLayout,
+  chapterActions,
+  sampleChapterBall,
+  HANDOFF_BOTTOM,
+  HANDOFF_TOP,
   cupLayout,
   gateLayout,
   INTRO_DURATION,
@@ -39,19 +43,17 @@ for (const compact of [false, true]) {
         expect(sampleGate(0.51, compact).ball).toMatchObject(
           layout.outgoing[0],
         );
-        expect(sampleGate(1, compact).ball.y).toBe(-1.5);
+        expect(sampleGate(1, compact).ball.y).toBe(HANDOFF_BOTTOM);
       });
-      it("holds the balance payload until the incoming marble lands", () => {
+      it("carries the same marble across the tipping balance", () => {
         const layout = balanceLayout(compact);
-        expect(sampleBalance(0.32, compact).angle).toBe(0);
-        expect(sampleBalance(0.57, compact).secondary).toMatchObject(
-          layout.release,
-        );
+        expect(sampleBalance(0.32, compact).angle).toBeCloseTo(0);
+        expect(sampleBalance(0.7, compact).ball).toMatchObject(layout.release);
         expect(sampleBalance(0.329999, compact).ball.y).toBeCloseTo(
           sampleBalance(0.33, compact).ball.y,
           4,
         );
-        expect(sampleBalance(1, compact).secondary).toMatchObject(
+        expect(sampleBalance(1, compact).ball).toMatchObject(
           layout.outgoing.at(-1)!,
         );
       });
@@ -118,3 +120,22 @@ it("reverses spin when the rail reverses direction", () => {
   expect(travel(path, 0.5).rotation).toBeLessThan(0);
   expect(travel(path, 1).rotation).toBeCloseTo(0);
 });
+
+for (const compact of [false, true]) {
+  it(`matches chapter exits to the next entrance (${compact ? "compact" : "wide"})`, () => {
+    for (let i = 0; i < chapterActions.length - 1; i++) {
+      const exit = sampleChapterBall(chapterActions[i], 1, compact);
+      const entrance = sampleChapterBall(chapterActions[i + 1], 0, compact);
+      expect(exit.x).toBe(entrance.x);
+      expect(exit.y).toBeCloseTo(HANDOFF_BOTTOM);
+      expect(entrance.y).toBe(HANDOFF_TOP);
+    }
+    expect(sampleChapterBall("tipping-cup", 1, compact).x).toBeGreaterThan(0);
+    expect(sampleChapterBall("counterweight-gate", 1, compact).x).toBeLessThan(
+      0,
+    );
+    expect(sampleChapterBall("balance-transfer", 1, compact).x).toBeGreaterThan(
+      0,
+    );
+  });
+}

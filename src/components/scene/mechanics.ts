@@ -56,8 +56,14 @@ export const chapterActions = [
 export type ChapterAction = (typeof chapterActions)[number];
 export type MachineKind = "intro" | ChapterAction;
 
+export const chapterSpan = (compact: boolean) => (compact ? 1.55 : 2.65);
+export const chapterDirection = (kind: MachineKind) =>
+  kind === "counterweight-gate" || kind === "bell" ? -1 : 1;
+export const HANDOFF_TOP = 1.95;
+export const HANDOFF_BOTTOM = -1.65;
+
 export function cupLayout(compact: boolean) {
-  const span = compact ? 1.55 : 2.65;
+  const span = chapterSpan(compact);
   const pivot = { x: 0, y: 0.15 };
   const localBall = { x: 0, y: 0.3 };
   const release = rotatePoint(pivot, localBall, -1.05);
@@ -67,11 +73,17 @@ export function cupLayout(compact: boolean) {
     localBall,
     release,
     incoming: [
+      { x: -span, y: HANDOFF_TOP },
       { x: -span, y: 1.45 },
       { x: -0.7, y: 0.7 },
       { x: 0, y: 0.45 },
     ],
-    outgoing: [release, { x: span * 0.62, y: -0.15 }, { x: span, y: -0.6 }],
+    outgoing: [
+      release,
+      { x: span * 0.62, y: -0.15 },
+      { x: span, y: -0.6 },
+      { x: span, y: HANDOFF_BOTTOM },
+    ],
   };
 }
 export function sampleCup(progress: number, compact: boolean) {
@@ -89,7 +101,7 @@ export function sampleCup(progress: number, compact: boolean) {
 }
 
 export function gateLayout(compact: boolean) {
-  const span = compact ? 1.5 : 2.6;
+  const span = chapterSpan(compact);
   const pivot = { x: -0.4, y: 0.55 };
   const localBall = { x: -0.45, y: 0.21 };
   const landing = rotatePoint(pivot, localBall, 0);
@@ -98,7 +110,7 @@ export function gateLayout(compact: boolean) {
     span,
     pivot,
     localBall,
-    incoming: [{ x: -span, y: 1.3 }, landing],
+    incoming: [{ x: -span, y: HANDOFF_TOP }, { x: -span, y: 1.3 }, landing],
     outgoing: [
       release,
       { x: span, y: 0.25 },
@@ -106,6 +118,7 @@ export function gateLayout(compact: boolean) {
       { x: -span, y: -0.72 },
       { x: -span, y: -1.02 },
       { x: span, y: -1.5 },
+      { x: span, y: HANDOFF_BOTTOM },
     ],
   };
 }
@@ -125,11 +138,11 @@ export function sampleGate(progress: number, compact: boolean) {
 }
 
 export function balanceLayout(compact: boolean) {
-  const span = compact ? 1.6 : 2.65;
+  const span = chapterSpan(compact);
   const pivot = { x: 0, y: 0.1 };
   const receiver = { x: -0.9, y: 0.25 };
   const payload = { x: 0.9, y: 0.25 };
-  const release = rotatePoint(pivot, payload, 0.28);
+  const release = rotatePoint(pivot, payload, -0.28);
   return {
     span,
     pivot,
@@ -137,23 +150,24 @@ export function balanceLayout(compact: boolean) {
     payload,
     release,
     incoming: [
+      { x: -span, y: HANDOFF_TOP },
       { x: -span, y: 1.45 },
       { x: -0.9, y: 0.95 },
     ],
-    outgoing: [
-      release,
-      { x: span, y: 0.1 },
-      { x: span, y: -0.3 },
-      { x: -span, y: -1.05 },
-    ],
+    outgoing: [release, { x: span, y: -0.3 }, { x: span, y: HANDOFF_BOTTOM }],
   };
 }
 export function sampleBalance(progress: number, compact: boolean) {
   const p = clamp(progress);
   const layout = balanceLayout(compact);
-  const angle = 0.28 * ease(phase(p, 0.33, 0.57));
-  const receiving = rotatePoint(layout.pivot, layout.receiver, angle);
+  const angle = -0.28 * ease(phase(p, 0.33, 0.5));
   const incoming = travel(layout.incoming, phase(p, 0.03, 0.23) ** 1.5);
+  const crossing = phase(p, 0.5, 0.7) ** 1.5;
+  const localBall = {
+    x: mix(layout.receiver.x, layout.payload.x, crossing),
+    y: layout.receiver.y,
+  };
+  const held = rotatePoint(layout.pivot, localBall, angle);
   const ball =
     p < 0.23
       ? incoming
@@ -163,19 +177,18 @@ export function sampleBalance(progress: number, compact: boolean) {
             y: mix(0.95, 0.35, phase(p, 0.23, 0.33) ** 2),
             rotation: incoming.rotation,
           }
-        : { ...receiving, rotation: angle };
-  const secondary =
-    p < 0.57
-      ? { ...rotatePoint(layout.pivot, layout.payload, angle), rotation: angle }
-      : travel(layout.outgoing, phase(p, 0.57, 0.95) ** 1.3);
-  return { ball, secondary, angle };
+        : p < 0.7
+          ? { ...held, rotation: angle - (crossing * 1.8) / MARBLE_RADIUS }
+          : travel(layout.outgoing, phase(p, 0.7, 0.96) ** 1.3);
+  return { ball, angle };
 }
 
 export function bellLayout(compact: boolean) {
-  const span = compact ? 1.55 : 2.6;
+  const span = chapterSpan(compact);
   return {
     span,
     rail: [
+      { x: -span, y: HANDOFF_TOP },
       { x: -span, y: 1.15 },
       { x: -0.5, y: 0.5 },
       { x: 0, y: 0.25 },
@@ -231,5 +244,25 @@ export function sampleIntro(progress: number) {
     weight,
     key,
     plunger: ease(phase(p, 0, 0.035)),
+  };
+}
+
+export function sampleChapterBall(
+  kind: ChapterAction,
+  progress: number,
+  compact: boolean,
+) {
+  const samplers = {
+    "tipping-cup": sampleCup,
+    "counterweight-gate": sampleGate,
+    "balance-transfer": sampleBalance,
+    bell: sampleBell,
+  };
+  const ball = samplers[kind](progress, compact).ball;
+  const direction = chapterDirection(kind);
+  return {
+    ...ball,
+    x: ball.x * direction,
+    rotation: ball.rotation * direction,
   };
 }

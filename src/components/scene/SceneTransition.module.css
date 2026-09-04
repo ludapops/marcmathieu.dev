@@ -1,6 +1,5 @@
 .transition {
   min-height: 92svh;
-  min-height: 92dvh;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;

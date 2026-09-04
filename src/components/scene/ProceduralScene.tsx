@@ -23,6 +23,7 @@ import { buildMachine, createMachineMaterials } from "./tabletop-machine";
 import {
   fitPerspectiveDistance,
   getSceneViewport,
+  getIntroViewport,
   sceneViewportPresets,
 } from "./scene-viewport";
 import styles from "./Scene.module.css";
@@ -108,6 +109,14 @@ export function ProceduralScene() {
       const target = new THREE.Vector3();
       const size = new THREE.Vector3();
       const center = new THREE.Vector3();
+      const ballPosition = new THREE.Vector3();
+      const chapterBounds = new THREE.Box3();
+      let introViewport = {
+        left: 0,
+        top: 0,
+        width: innerWidth,
+        height: innerHeight,
+      };
 
       const stageAt = (p: number): MachineStage =>
         p < 0.35
@@ -141,30 +150,45 @@ export function ProceduralScene() {
         const viewHeight = Math.round(
           window.visualViewport?.height ?? innerHeight,
         );
+        let stageWidth: number;
+        let stageHeight: number;
         if (index === 0) {
-          renderer.setViewport(0, 0, viewWidth, viewHeight);
-          camera.aspect = viewWidth / viewHeight;
+          stageWidth = introViewport.width;
+          stageHeight = introViewport.height;
+          renderer.setViewport(
+            introViewport.left,
+            viewHeight - introViewport.top - stageHeight,
+            stageWidth,
+            stageHeight,
+          );
+          machine.bounds.getSize(size);
+          machine.bounds.getCenter(center);
+          canvas.dataset.machineViewportLeft = introViewport.left.toFixed(2);
+          canvas.dataset.machineViewportTop = introViewport.top.toFixed(2);
         } else {
           const rect = chapters[index - 1].getBoundingClientRect();
           const labelSpace = viewHeight < 500 ? 70 : compact ? 95 : 130;
           const topSpace = viewHeight < 500 ? 35 : 50;
-          const visibleTop = Math.max(rect.top + topSpace, 66);
-          const visibleBottom = Math.min(
-            rect.bottom - labelSpace,
-            viewHeight - 20,
-          );
-          const availableHeight = Math.max(80, visibleBottom - visibleTop);
+          stageWidth = viewWidth;
+          stageHeight = Math.max(120, rect.height - labelSpace - topSpace);
           renderer.setViewport(
             0,
-            viewHeight - visibleTop - availableHeight,
-            viewWidth,
-            availableHeight,
+            viewHeight - rect.top - topSpace - stageHeight,
+            stageWidth,
+            stageHeight,
           );
-          camera.aspect = viewWidth / availableHeight;
+          // Every chapter uses the same fixed world frame. Scrolling only translates its viewport.
+          chapterBounds.makeEmpty();
+          machines
+            .slice(1)
+            .forEach((chapter) => chapterBounds.union(chapter.bounds));
+          chapterBounds.getSize(size);
+          chapterBounds.getCenter(center);
         }
+        camera.aspect = stageWidth / stageHeight;
         camera.updateProjectionMatrix();
-        machine.bounds.getSize(size);
-        machine.bounds.getCenter(center);
+        canvas.dataset.machineViewportWidth = stageWidth.toFixed(2);
+        canvas.dataset.machineViewportHeight = stageHeight.toFixed(2);
         let width = size.x + (compact ? 0.1 : 0.4);
         let height = size.y + 0.5;
         if (index === 0 && viewport === "phone") {
@@ -188,6 +212,11 @@ export function ProceduralScene() {
           verticalFov: camera.fov,
           padding: index === 0 ? 1.18 : compact ? 1.05 : 1.12,
         });
+        canvas.dataset.machineCameraDistance = distance.toFixed(6);
+        canvas.dataset.machinePixelsPerUnit = (
+          stageHeight /
+          (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance)
+        ).toFixed(6);
         target.set(center.x, center.y + (index === 0 ? 0.2 : 0.15), 0);
         camera.position.set(
           center.x + 0.18,
@@ -230,10 +259,13 @@ export function ProceduralScene() {
         canvas.dataset.machineClipTop = top.toFixed(2);
         canvas.dataset.machineClipBottom = bottom.toFixed(2);
         show(index + 1);
-        if (!paused) machines[index + 1].pose(progress);
+        const storyProgress = clamp((progress - 0.18) / 0.52);
+        if (!paused) machines[index + 1].pose(storyProgress);
         const ball = machines[index + 1].ball;
-        canvas.dataset.machineBallX = ball.position.x.toFixed(4);
-        canvas.dataset.machineBallY = ball.position.y.toFixed(4);
+        machines[index + 1].group.updateMatrixWorld(true);
+        ball.getWorldPosition(ballPosition);
+        canvas.dataset.machineBallX = ballPosition.x.toFixed(4);
+        canvas.dataset.machineBallY = ballPosition.y.toFixed(4);
         frameMachine(index + 1);
         canvas.dataset.machineMode = "chapter";
         canvas.dataset.machineChapter = String(index + 1);
@@ -250,6 +282,19 @@ export function ProceduralScene() {
           1,
           Math.round(window.visualViewport?.height ?? innerHeight),
         );
+        const identity = document
+          .querySelector<HTMLElement>("[data-intro-identity]")
+          ?.getBoundingClientRect();
+        const controls = document
+          .querySelector<HTMLElement>("[data-machine-control]")
+          ?.getBoundingClientRect();
+        introViewport = getIntroViewport({
+          width,
+          height,
+          identityRight: identity?.right ?? width * 0.3,
+          identityBottom: identity?.bottom ?? height * 0.25,
+          controlsTop: controls?.top ?? height * 0.8,
+        });
         const nextCompact = width < 600;
         if (nextCompact !== compact) {
           machines.forEach((machine) => {
@@ -433,6 +478,11 @@ export function ProceduralScene() {
         shell.setAttribute("data-webgl", "ready");
         if (introActive) dispatchMachineReady();
       });
+      const layoutObserver = new ResizeObserver(resize);
+      const identity = document.querySelector("[data-intro-identity]");
+      const controls = document.querySelector("[data-machine-control]");
+      if (identity) layoutObserver.observe(identity);
+      if (controls) layoutObserver.observe(controls);
       window.addEventListener("resize", resize);
       window.visualViewport?.addEventListener("resize", resize);
       window.addEventListener(introEvents.wind, wind);
@@ -447,6 +497,7 @@ export function ProceduralScene() {
         cancelAnimationFrame(readyFrame);
         sequence?.kill();
         triggers.forEach((trigger) => trigger.kill());
+        layoutObserver.disconnect();
         window.removeEventListener("resize", resize);
         window.visualViewport?.removeEventListener("resize", resize);
         window.removeEventListener(introEvents.wind, wind);

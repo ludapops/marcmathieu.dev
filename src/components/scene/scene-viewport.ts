@@ -64,3 +64,29 @@ export function fitPerspectiveDistance({
 
   return Math.max(horizontalDistance, verticalDistance) + depth * 0.5;
 }
+
+export function getIntroViewport({
+  width,
+  height,
+  identityRight,
+  identityBottom,
+  controlsTop,
+}: {
+  width: number;
+  height: number;
+  identityRight: number;
+  identityBottom: number;
+  controlsTop: number;
+}) {
+  const sideBySide = width >= 800 && width / height > 1.3;
+  const left = sideBySide ? Math.max(identityRight + 32, width * 0.32) : 16;
+  const top = sideBySide ? Math.max(80, height * 0.12) : identityBottom + 24;
+  const right = width - (sideBySide ? 32 : 16);
+  const bottom = sideBySide ? height - 32 : controlsTop - 24;
+  return {
+    left,
+    top,
+    width: Math.max(120, right - left),
+    height: Math.max(120, bottom - top),
+  };
+}
