@@ -112,6 +112,8 @@ export default function Home() {
         </div>
       </section>
 
+      <SceneTransition index="04" label="Finish" module="finale" />
+
       <section
         className={styles.contact}
         id="contact"

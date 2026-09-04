@@ -1,0 +1,464 @@
+import * as THREE from "three";
+import {
+  balanceLayout,
+  bellLayout,
+  cupLayout,
+  gateLayout,
+  introLayout,
+  MARBLE_RADIUS,
+  sampleBalance,
+  sampleBell,
+  sampleCup,
+  sampleGate,
+  sampleIntro,
+  rotatePoint,
+  type MachineKind,
+  type Point,
+} from "./mechanics";
+
+export type MachineMaterials = ReturnType<typeof createMachineMaterials>;
+export function createMachineMaterials(styles: CSSStyleDeclaration) {
+  const material = (token: string, metalness: number, roughness: number) =>
+    new THREE.MeshStandardMaterial({
+      color: styles.getPropertyValue(token).trim(),
+      metalness,
+      roughness,
+    });
+  return {
+    wood: material("--machine-wood", 0.05, 0.6),
+    edge: material("--machine-edge", 0.2, 0.4),
+    brass: material("--machine-brass", 0.65, 0.26),
+    steel: material("--machine-steel", 0.72, 0.24),
+    ivory: material("--paper", 0.1, 0.35),
+    green: material("--machine-green", 0.3, 0.22),
+    orange: material("--machine-orange", 0.3, 0.24),
+    violet: material("--machine-violet", 0.3, 0.24),
+  };
+}
+
+export function buildMachine(
+  kind: MachineKind,
+  compact: boolean,
+  m: MachineMaterials,
+) {
+  const group = new THREE.Group();
+  const accent =
+    kind === "counterweight-gate"
+      ? m.orange
+      : kind === "balance-transfer"
+        ? m.violet
+        : m.green;
+  const mesh = (
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    parent: THREE.Object3D = group,
+  ) => {
+    const object = new THREE.Mesh(geometry, material);
+    object.castShadow = true;
+    object.receiveShadow = true;
+    parent.add(object);
+    return object;
+  };
+  const box = (
+    w: number,
+    h: number,
+    d: number,
+    x: number,
+    y: number,
+    material = m.wood,
+    parent: THREE.Object3D = group,
+    z = 0,
+  ) => {
+    const object = mesh(new THREE.BoxGeometry(w, h, d), material, parent);
+    object.position.set(x, y, z);
+    if (Math.min(w, h, d) < 0.06) object.castShadow = false;
+    return object;
+  };
+  const ball = (material = accent) => {
+    const object = mesh(
+      new THREE.SphereGeometry(MARBLE_RADIUS, 28, 20),
+      material,
+    );
+    const band = mesh(
+      new THREE.TorusGeometry(MARBLE_RADIUS * 0.997, 0.012, 6, 32),
+      m.ivory,
+      object,
+    );
+    band.rotation.y = Math.PI / 2;
+    return object;
+  };
+  const cylinder = (
+    radius: number,
+    height: number,
+    x: number,
+    y: number,
+    material = m.brass,
+    parent: THREE.Object3D = group,
+  ) => {
+    const object = mesh(
+      new THREE.CylinderGeometry(radius, radius, height, 24),
+      material,
+      parent,
+    );
+    object.position.set(x, y, 0);
+    if (radius < 0.11) object.castShadow = false;
+    return object;
+  };
+  const rod = (
+    a: THREE.Vector3,
+    b: THREE.Vector3,
+    radius: number,
+    material: THREE.Material,
+    parent: THREE.Object3D = group,
+  ) => {
+    const object = mesh(
+      new THREE.CylinderGeometry(radius, radius, a.distanceTo(b), 10),
+      material,
+      parent,
+    );
+    object.position.copy(a).add(b).multiplyScalar(0.5);
+    object.castShadow = false;
+    object.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      b.clone().sub(a).normalize(),
+    );
+    return object;
+  };
+  const line = (
+    points: readonly Point[],
+    radius = 0.025,
+    material = m.steel,
+    z = 0,
+    parent: THREE.Object3D = group,
+  ) => {
+    const curve = new THREE.CurvePath<THREE.Vector3>();
+    points
+      .slice(1)
+      .forEach((point, i) =>
+        curve.add(
+          new THREE.LineCurve3(
+            new THREE.Vector3(points[i].x, points[i].y, z),
+            new THREE.Vector3(point.x, point.y, z),
+          ),
+        ),
+      );
+    return mesh(
+      new THREE.TubeGeometry(curve, 96, radius, 8, false),
+      material,
+      parent,
+    );
+  };
+  const baseY =
+    kind === "counterweight-gate"
+      ? -1.95
+      : kind === "balance-transfer"
+        ? -1.5
+        : -1.05;
+  const span = kind === "intro" ? 3.9 : compact ? 1.85 : 3.0;
+  box(span * 2, 0.18, 1.3, 0, baseY, m.wood);
+  box(span * 2, 0.055, 1.34, 0, baseY - 0.11, m.edge);
+  [-span + 0.24, span - 0.24].forEach((x) => {
+    for (const z of [-0.42, 0.42])
+      box(0.24, 0.16, 0.24, x, baseY - 0.2, m.edge, group, z);
+  });
+  const support = (x: number, y: number, z = -0.26) => {
+    rod(
+      new THREE.Vector3(x, baseY + 0.1, z),
+      new THREE.Vector3(x, y, z),
+      0.035,
+      m.brass,
+    );
+    box(0.22, 0.055, 0.3, x, baseY + 0.12, m.brass, group, z);
+  };
+  const rail = (points: readonly Point[]) => {
+    // Twin rails sit under the sphere at their actual circular contact height.
+    const offset = Math.sqrt((MARBLE_RADIUS + 0.027) ** 2 - 0.1 ** 2);
+    const contact = points.map((point) => ({
+      x: point.x,
+      y: point.y - offset,
+    }));
+    line(contact, 0.027, m.steel, -0.1);
+    line(contact, 0.027, m.steel, 0.1);
+    [contact[0], contact.at(-1)].forEach((point) => {
+      if (point) support(point.x, point.y);
+    });
+  };
+  const axle = (pivot: Point, parent = group) => {
+    const hub = cylinder(0.105, 0.6, pivot.x, pivot.y, m.brass, parent);
+    hub.rotation.x = Math.PI / 2;
+    const cap = cylinder(0.058, 0.64, pivot.x, pivot.y, m.edge, parent);
+    cap.rotation.x = Math.PI / 2;
+    support(pivot.x, pivot.y);
+  };
+  const catchBall = (point: Point) => {
+    box(0.11, 0.32, 0.42, point.x + 0.2, point.y - 0.05, m.brass);
+  };
+  const cup = (
+    x: number,
+    y: number,
+    parent: THREE.Object3D,
+    material = accent,
+  ) => {
+    const points = [
+      new THREE.Vector2(0.02, 0.04),
+      new THREE.Vector2(0.18, 0.04),
+      new THREE.Vector2(0.25, 0.14),
+      new THREE.Vector2(0.27, 0.3),
+      new THREE.Vector2(0.23, 0.3),
+      new THREE.Vector2(0.2, 0.16),
+      new THREE.Vector2(0.13, 0.1),
+      new THREE.Vector2(0.02, 0.1),
+    ];
+    const object = mesh(new THREE.LatheGeometry(points, 32), material, parent);
+    object.position.set(x, y, 0);
+    return object;
+  };
+  const position = (
+    object: THREE.Object3D,
+    point: Point & { rotation: number },
+  ) => {
+    object.position.set(point.x, point.y, 0);
+    object.rotation.z = point.rotation;
+  };
+  const lead = ball();
+  let pose: (progress: number, wind?: number) => void;
+
+  if (kind === "tipping-cup") {
+    const layout = cupLayout(compact);
+    rail(layout.incoming);
+    rail(layout.outgoing);
+    catchBall(layout.outgoing[2]);
+    const tipping = new THREE.Group();
+    tipping.position.set(layout.pivot.x, layout.pivot.y, 0);
+    group.add(tipping);
+    cup(0, 0.04, tipping);
+    box(0.11, 0.52, 0.16, 0, -0.23, m.brass, tipping);
+    cylinder(0.17, 0.18, 0, -0.5, m.edge, tipping);
+    axle(layout.pivot);
+    pose = (p) => {
+      const state = sampleCup(p, compact);
+      tipping.rotation.z = state.angle;
+      position(lead, state.ball);
+    };
+  } else if (kind === "counterweight-gate") {
+    const layout = gateLayout(compact);
+    rail(layout.incoming);
+    rail(layout.outgoing);
+    catchBall(layout.outgoing.at(-1)!);
+    const lever = new THREE.Group();
+    group.add(lever);
+    lever.position.set(layout.pivot.x, layout.pivot.y, 0);
+    box(1.1, 0.09, 0.38, 0, 0, accent, lever);
+    axle(layout.pivot);
+    const gate = box(0.12, 0.62, 0.55, 0.2, 0.7, m.brass);
+    const counterweight = cylinder(0.17, 0.35, 0.92, 1.1, m.edge);
+    for (const x of [0.2, 0.92]) {
+      support(x, 1.85, -0.36);
+      const wheel = mesh(new THREE.TorusGeometry(0.13, 0.035, 8, 24), m.brass);
+      wheel.position.set(x, 1.75, 0);
+    }
+    const leftCord = box(0.018, 1, 0.018, 0.2, 1, m.edge);
+    const rightCord = box(0.018, 1, 0.018, 0.92, 1, m.edge);
+    line(
+      [
+        { x: 0.2, y: 1.88 },
+        { x: 0.92, y: 1.88 },
+      ],
+      0.009,
+      m.edge,
+    );
+    pose = (p) => {
+      const state = sampleGate(p, compact);
+      position(lead, state.ball);
+      lever.rotation.z = state.angle;
+      gate.position.y = 0.7 + state.lift * 0.58;
+      counterweight.position.y = 1.1 - state.lift * 0.58;
+      for (const [cord, bottom] of [
+        [leftCord, gate.position.y + 0.31],
+        [rightCord, counterweight.position.y + 0.175],
+      ] as const) {
+        const length = 1.88 - bottom;
+        cord.scale.y = length;
+        cord.position.y = 1.88 - length / 2;
+      }
+    };
+  } else if (kind === "balance-transfer") {
+    const layout = balanceLayout(compact);
+    rail(layout.incoming);
+    rail(layout.outgoing);
+    const beam = new THREE.Group();
+    beam.position.set(0, 0.1, 0);
+    group.add(beam);
+    box(2.2, 0.1, 0.4, 0, 0, m.brass, beam);
+    cup(-0.9, -0.01, beam);
+    const tray = new THREE.Group();
+    group.add(tray);
+    box(0.45, 0.07, 0.4, 0, 0, accent, tray);
+    box(0.055, 0.2, 0.4, -0.22, 0.085, accent, tray);
+    const trayPin = cylinder(0.065, 0.46, 0, 0, m.brass, tray);
+    trayPin.rotation.x = Math.PI / 2;
+    axle(layout.pivot);
+    const payload = ball(m.ivory);
+    pose = (p) => {
+      const state = sampleBalance(p, compact);
+      beam.rotation.z = state.angle;
+      const held = rotatePoint(layout.pivot, layout.payload, state.angle);
+      tray.position.set(held.x, held.y - 0.195, 0);
+      tray.rotation.z = -0.1;
+
+      position(lead, state.ball);
+      position(payload, state.secondary);
+    };
+  } else if (kind === "bell") {
+    const layout = bellLayout(compact);
+    rail(layout.rail);
+    cup(0, -0.61, group, m.green);
+    const striker = new THREE.Group();
+    striker.position.set(0.15, 1.3, 0);
+    group.add(striker);
+    box(0.055, 0.98, 0.06, 0, -0.49, m.wood, striker);
+    const head = cylinder(0.15, 0.3, 0, -0.96, m.brass, striker);
+    head.rotation.z = Math.PI / 2;
+    axle(layout.strikerPivot);
+    const bell = new THREE.Group();
+    bell.position.set(1.16, 1.3, 0);
+    group.add(bell);
+    const bellPoints = [
+      new THREE.Vector2(0.08, 0),
+      new THREE.Vector2(0.17, -0.1),
+      new THREE.Vector2(0.22, -0.4),
+      new THREE.Vector2(0.4, -0.68),
+      new THREE.Vector2(0.42, -0.72),
+      new THREE.Vector2(0.35, -0.73),
+      new THREE.Vector2(0.15, -0.39),
+      new THREE.Vector2(0.1, -0.12),
+    ];
+    mesh(new THREE.LatheGeometry(bellPoints, 40), m.brass, bell);
+    support(1.16, 1.55, -0.4);
+    rod(
+      new THREE.Vector3(1.16, 1.55, -0.4),
+      new THREE.Vector3(1.16, 1.55, 0),
+      0.035,
+      m.brass,
+    );
+    rod(
+      new THREE.Vector3(1.16, 1.55, 0),
+      new THREE.Vector3(1.16, 1.3, 0),
+      0.03,
+      m.brass,
+    );
+    const latch = new THREE.Group();
+    group.add(latch);
+    latch.position.set(0, 0.06, 0);
+    box(0.08, 0.38, 0.25, 0, 0.19, accent, latch);
+    rod(
+      new THREE.Vector3(0, 0.1, 0),
+      new THREE.Vector3(-0.56, 0.43, 0),
+      0.035,
+      m.brass,
+      latch,
+    );
+    axle({ x: 0, y: 0.06 });
+    pose = (p) => {
+      const state = sampleBell(p, compact);
+      position(lead, state.ball);
+      striker.rotation.z = state.angle;
+      bell.rotation.z = state.bellAngle;
+      latch.rotation.z = -state.strike * 0.7;
+    };
+  } else {
+    rail(introLayout.rail);
+    const springPoints = Array.from(
+      { length: 100 },
+      (_, i) =>
+        new THREE.Vector3(
+          (i / 99) * 0.65,
+          Math.sin((i / 99) * Math.PI * 14) * 0.105,
+          Math.cos((i / 99) * Math.PI * 14) * 0.105,
+        ),
+    );
+    const spring = mesh(
+      new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3(springPoints),
+        120,
+        0.024,
+        8,
+        false,
+      ),
+      m.brass,
+    );
+    spring.position.set(-3.98, 1.15, 0);
+    box(0.1, 0.46, 0.44, -3.98, 1.15, m.edge);
+    support(-3.98, 1.15);
+    const plunger = box(0.08, 0.36, 0.34, -3.36, 1.15, m.ivory);
+    const trigger = new THREE.Group();
+    group.add(trigger);
+    trigger.position.set(-1.1, 0, 0);
+    box(0.08, 0.78, 0.32, 0, 0.28, m.brass, trigger);
+    axle(introLayout.leverPivot);
+    const dominoes = Array.from({ length: introLayout.dominoCount }, (_, i) => {
+      const domino = new THREE.Group();
+      group.add(domino);
+      domino.position.set(
+        introLayout.dominoStart + i * introLayout.dominoGap,
+        -0.35,
+        0,
+      );
+      box(0.12, 0.7, 0.35, 0, 0.35, i % 2 ? m.ivory : m.green, domino);
+      box(0.125, 0.018, 0.36, 0, 0.35, m.brass, domino);
+      return domino;
+    });
+    box(2.25, 0.11, 0.62, 0.28, -0.42, m.wood);
+    support(-0.55, -0.42);
+    support(1.2, -0.42);
+    const latch = box(0.08, 0.65, 0.2, 1.85, -0.07, m.brass);
+    axle({ x: 1.85, y: -0.35 });
+    const key = new THREE.Group();
+    group.add(key);
+    key.position.set(2.85, -0.46, 0);
+    box(0.95, 0.22, 0.78, 0, 0, m.edge, key);
+    box(0.87, 0.12, 0.7, 0, 0.17, m.ivory, key);
+    // Geometric return arrow stays sharp without a texture or a font request.
+    box(0.3, 0.014, 0.045, 0, 0.24, m.edge, key);
+    box(0.045, 0.014, 0.18, 0.13, 0.24, m.edge, key, -0.07);
+    const arrow = box(0.12, 0.014, 0.045, -0.15, 0.24, m.edge, key, -0.025);
+    arrow.rotation.y = -0.6;
+    const weight = cylinder(0.25, 0.45, 2.85, 1.12, m.brass);
+    const crossbar = box(1.3, 0.07, 0.1, 2.25, 1.55, m.brass, group, -0.3);
+    support(1.65, crossbar.position.y, -0.3);
+    support(3.1, crossbar.position.y, -0.3);
+    const rope = box(0.025, 0.23, 0.025, 2.85, 1.43, m.edge);
+    const retaining = box(0.9, 0.06, 0.12, 2.3, 0.86, m.brass);
+    pose = (p, wind = 0) => {
+      const state = sampleIntro(p);
+      position(lead, state.ball);
+      trigger.rotation.z = state.lever;
+      dominoes.forEach((d, i) => (d.rotation.z = state.dominoes[i]));
+      latch.rotation.z = -Math.max(0, (p - 0.73) / 0.04) * 0.55;
+      latch.rotation.z = Math.max(-0.55, latch.rotation.z);
+      retaining.position.x =
+        2.3 - Math.min(1, Math.max(0, (p - 0.73) / 0.04)) * 0.55;
+      weight.position.y = 1.12 - state.weight * 1.125 - state.key * 0.1;
+      key.position.y = -0.46 - state.key * 0.1;
+      const ropeLength = 1.55 - (weight.position.y + 0.225);
+      rope.scale.y = ropeLength / 0.23;
+      rope.position.y = 1.55 - ropeLength / 2;
+      const compression = p > 0 ? 1 - state.plunger : wind;
+      spring.scale.x = 1 - compression * 0.55;
+      plunger.position.x = -3.36 - compression * 0.35;
+    };
+  }
+  pose(0);
+  const bounds = new THREE.Box3().setFromObject(group);
+  return {
+    group,
+    ball: lead,
+    pose,
+    bounds,
+    dispose() {
+      group.traverse((object) => {
+        if (object instanceof THREE.Mesh) object.geometry.dispose();
+      });
+    },
+  };
+}

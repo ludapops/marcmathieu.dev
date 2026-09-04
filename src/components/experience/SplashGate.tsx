@@ -105,7 +105,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       cancelAnimationFrame(frameRef.current);
       stopAnimations();
 
-      if (phaseRef.current !== "running") {
+      if (phaseRef.current !== "running" || skipped) {
         phaseRef.current = "running";
         setPhase("running");
         dispatchMachineStart({
@@ -152,22 +152,22 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       if (staticMode || skipped) {
         const duration = staticMode ? 140 : 340;
         [root, backdrop].forEach((element) =>
-          animate(
-            element,
-            [{ opacity: 1 }, { opacity: 0 }],
-            { duration, easing: "ease-out", fill: "forwards" },
-          ),
+          animate(element, [{ opacity: 1 }, { opacity: 0 }], {
+            duration,
+            easing: "ease-out",
+            fill: "forwards",
+          }),
         );
         return;
       }
 
       if (!handoff || !handoffOrb || !content) {
         [root, backdrop].forEach((element) =>
-          animate(
-            element,
-            [{ opacity: 1 }, { opacity: 0 }],
-            { duration: 500, easing: "ease-out", fill: "forwards" },
-          ),
+          animate(element, [{ opacity: 1 }, { opacity: 0 }], {
+            duration: 500,
+            easing: "ease-out",
+            fill: "forwards",
+          }),
         );
         return;
       }
@@ -205,11 +205,12 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
           fill: "forwards",
         },
       );
-      animate(
-        handoffOrb,
-        [{ opacity: 1 }, { opacity: 0 }],
-        { delay: 720, duration: 480, easing: "ease-out", fill: "forwards" },
-      );
+      animate(handoffOrb, [{ opacity: 1 }, { opacity: 0 }], {
+        delay: 720,
+        duration: 480,
+        easing: "ease-out",
+        fill: "forwards",
+      });
       const contentAnimation = animate(
         content,
         [
@@ -260,7 +261,7 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
 
       dispatchMachineStart({ skipped: false, reduced: false });
       const controls = document.querySelector<HTMLElement>(
-        "[data-machine-control]",
+        "[data-machine-control] button",
       );
       if (controls) controls.style.pointerEvents = "none";
       animate(
@@ -278,17 +279,29 @@ export function SplashGate({ active, onComplete }: SplashGateProps) {
       document
         .querySelectorAll<HTMLElement>("[data-machine-copy]")
         .forEach((element) =>
-          animate(
-            element,
-            [{ opacity: 1 }, { opacity: 0.42 }],
-            { duration: 450, easing: "ease-out", fill: "forwards" },
-          ),
+          animate(element, [{ opacity: 1 }, { opacity: 0.42 }], {
+            duration: 450,
+            easing: "ease-out",
+            fill: "forwards",
+          }),
         );
 
-      watchdogRef.current = window.setTimeout(
-        () => reveal(false, restoreFocusRef.current),
-        MACHINE_WATCHDOG_MS - 700,
-      );
+      let elapsed = 0;
+      let lastTick = performance.now();
+      const watch = () => {
+        const now = performance.now();
+        if (
+          !document.hidden &&
+          window.localStorage.getItem("portfolio-motion-paused") !== "true"
+        ) {
+          elapsed += Math.min(now - lastTick, 500);
+        }
+        lastTick = now;
+        if (elapsed >= MACHINE_WATCHDOG_MS - 700)
+          reveal(false, restoreFocusRef.current);
+        else watchdogRef.current = window.setTimeout(watch, 250);
+      };
+      watchdogRef.current = window.setTimeout(watch, 250);
     },
     [animate, reveal, writeWind],
   );

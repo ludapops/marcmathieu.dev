@@ -4,14 +4,10 @@ import { expect, type Page, test } from "@playwright/test";
 const splash = (page: Page) => page.locator("[data-intro-splash]");
 
 async function prepareScene(page: Page) {
-  if (
-    (await splash(page).getAttribute("data-machine-ready")) !== "true"
-  ) {
+  if ((await splash(page).getAttribute("data-machine-ready")) !== "true") {
     await expect
       .poll(() =>
-        page.evaluate(
-          () => document.documentElement.dataset.introState,
-        ),
+        page.evaluate(() => document.documentElement.dataset.introState),
       )
       .toBe("locked");
     await expect
@@ -41,7 +37,7 @@ async function dismissIntro(page: Page) {
 
 async function setTransitionProgress(
   page: Page,
-  name: "AG1" | "Battlefield" | "BeautyNexos",
+  name: "AG1" | "Battlefield" | "BeautyNexos" | "Finish",
   progress: number,
 ) {
   await page.evaluate(async () => {
@@ -205,6 +201,9 @@ test("auto-launches the machine at full wind and enters after the key impact", a
     "inset(0px 0px 100%)",
   );
   await expect(canvas).toHaveCount(1);
+  expect(
+    Number(await canvas.getAttribute("data-machine-draw-calls")),
+  ).toBeLessThan(100);
   const box = await enter.boundingBox();
   expect(box).not.toBeNull();
   await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
@@ -221,10 +220,10 @@ test("auto-launches the machine at full wind and enters after the key impact", a
     /marble|dominoes|seesaw|key|complete/,
   );
   await expect(canvas).toHaveAttribute("data-machine-stage", "complete", {
-    timeout: 4_500,
+    timeout: 9_000,
   });
   await expect(page.locator("[data-intro-handoff]")).toBeVisible();
-  await expect(splash(page)).toBeHidden({ timeout: 6_500 });
+  await expect(splash(page)).toBeHidden({ timeout: 11_000 });
   await expect(page.locator('[data-motion="hero"]').first()).toHaveCSS(
     "clip-path",
     "none",
@@ -273,7 +272,7 @@ test("supports a continuous touch hold", async ({ page }, testInfo) => {
   await expect(
     page.getByRole("button", { name: "Machine running" }),
   ).toBeVisible();
-  await expect(splash(page)).toBeHidden({ timeout: 6_500 });
+  await expect(splash(page)).toBeHidden({ timeout: 11_000 });
 });
 
 test("uses an upward touch gesture to enter and restores page scrolling", async ({
@@ -424,7 +423,7 @@ test("tracks the intro reaction through phone-specific camera frames", async ({
     button: 0,
   });
 
-  await expect(splash(page)).toHaveCount(0, { timeout: 6_500 });
+  await expect(splash(page)).toHaveCount(0, { timeout: 11_000 });
   await expect
     .poll(() =>
       page.evaluate(
@@ -635,7 +634,7 @@ test("supports keyboard holds, Escape, and development reloads", async ({
     page.getByRole("button", { name: "Machine running" }),
   ).toBeVisible();
   await page.keyboard.up("Enter");
-  await expect(splash(page)).toBeHidden({ timeout: 6_500 });
+  await expect(splash(page)).toBeHidden({ timeout: 11_000 });
   await expect(page.locator("#main-content")).toBeFocused();
 
   await page.reload();
@@ -737,9 +736,9 @@ test("preserves a requested hash after dismissal", async ({ page }) => {
   await page.reload();
   await dismissIntro(page);
   await expect(page.locator("#contact")).toBeInViewport({ timeout: 20_000 });
-  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe(
-    "#contact",
-  );
+  await expect
+    .poll(() => page.evaluate(() => window.location.hash))
+    .toBe("#contact");
 });
 
 test("presents the positioning and all three case studies", async ({
@@ -862,9 +861,7 @@ test("falls back to a static entrance when WebGL is unavailable", async ({
       await page.evaluate(() =>
         window.dispatchEvent(new CustomEvent("portfolio:scene-prepare")),
       );
-      return page
-        .getByRole("button", { name: "Enter portfolio" })
-        .isVisible();
+      return page.getByRole("button", { name: "Enter portfolio" }).isVisible();
     })
     .toBe(true);
   await page.getByRole("button", { name: "Enter portfolio" }).click();
@@ -956,71 +953,38 @@ test("scrubs connected machine chapters and Pause Motion freezes them", async ({
   expect(pausedFrameA).toBe(pausedFrameB);
 });
 
-test("uses the falling marble to launch a second marble into the hoop", async ({
-  page,
-}, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium", "WebGL story check");
-
+test("runs and reverses all four tabletop mechanisms", async ({ page }) => {
   await dismissIntro(page);
   const canvas = page.locator("[data-machine-canvas]");
-
-  await setTransitionProgress(page, "AG1", 0.05);
-  await expect(canvas).toHaveAttribute("data-machine-action", "roll-right");
-  const rollStartX = Number(await canvas.getAttribute("data-machine-ball-x"));
-  await setTransitionProgress(page, "AG1", 0.95);
-  const rollEndX = Number(await canvas.getAttribute("data-machine-ball-x"));
-  expect(rollEndX).toBeGreaterThan(rollStartX + 5);
-
-  await setTransitionProgress(page, "Battlefield", 0.05);
-  await expect(canvas).toHaveAttribute("data-machine-action", "drop-left");
-  const dropStartX = Number(await canvas.getAttribute("data-machine-ball-x"));
-  await setTransitionProgress(page, "Battlefield", 0.76);
-  const dropEndX = Number(await canvas.getAttribute("data-machine-ball-x"));
-  const dropEndY = Number(await canvas.getAttribute("data-machine-ball-y"));
-  expect(dropStartX).toBeCloseTo(rollEndX, 0);
-  expect(dropEndX).toBeLessThan(-1.8);
-  expect(dropEndY).toBeLessThan(-2.5);
-
-  await setTransitionProgress(page, "BeautyNexos", 0.05);
-  await expect(canvas).toHaveAttribute("data-machine-action", "basket-shot");
-  expect(Number(await canvas.getAttribute("data-machine-ball-x"))).toBeCloseTo(
-    dropEndX,
-    0,
-  );
-  await expect(canvas).toHaveAttribute(
-    "data-machine-shot-ball-visible",
-    "true",
-  );
-  const loadedShotX = Number(
-    await canvas.getAttribute("data-machine-shot-ball-x"),
-  );
-  expect(loadedShotX).toBeGreaterThan(dropEndX + 1);
-
-  await setTransitionProgress(page, "BeautyNexos", 0.42);
-  expect(Number(await canvas.getAttribute("data-machine-catapult"))).toBe(1);
-  expect(
-    Number(await canvas.getAttribute("data-machine-shot")),
-  ).toBeGreaterThan(0);
-  expect(Number(await canvas.getAttribute("data-machine-score"))).toBe(0);
-  expect(Number(await canvas.getAttribute("data-machine-ball-x"))).toBeLessThan(
-    -3,
-  );
-  expect(
-    Number(await canvas.getAttribute("data-machine-shot-ball-x")),
-  ).toBeGreaterThan(loadedShotX + 2);
-
-  await setTransitionProgress(page, "BeautyNexos", 0.58);
-  expect(Number(await canvas.getAttribute("data-machine-score"))).toBe(1);
-  expect(Number(await canvas.getAttribute("data-machine-confetti"))).toBe(1);
-
-  await setTransitionProgress(page, "BeautyNexos", 0.15);
-  expect(Number(await canvas.getAttribute("data-machine-catapult"))).toBe(0);
-  expect(Number(await canvas.getAttribute("data-machine-shot"))).toBe(0);
-  expect(Number(await canvas.getAttribute("data-machine-score"))).toBe(0);
-  expect(Number(await canvas.getAttribute("data-machine-confetti"))).toBe(0);
-  expect(
-    Number(await canvas.getAttribute("data-machine-shot-ball-x")),
-  ).toBeCloseTo(loadedShotX, 1);
+  for (const [name, action] of [
+    ["AG1", "tipping-cup"],
+    ["Battlefield", "counterweight-gate"],
+    ["BeautyNexos", "balance-transfer"],
+    ["Finish", "bell"],
+  ] as const) {
+    await setTransitionProgress(page, name, 0.3);
+    await expect(canvas).toHaveAttribute("data-machine-action", action);
+    const before = [
+      await canvas.getAttribute("data-machine-ball-x"),
+      await canvas.getAttribute("data-machine-ball-y"),
+    ];
+    await setTransitionProgress(page, name, 0.7);
+    const after = [
+      await canvas.getAttribute("data-machine-ball-x"),
+      await canvas.getAttribute("data-machine-ball-y"),
+    ];
+    expect(after).not.toEqual(before);
+    expect(
+      Number(await canvas.getAttribute("data-machine-draw-calls")),
+    ).toBeLessThan(100);
+    await setTransitionProgress(page, name, 0.3);
+    const restored = [
+      await canvas.getAttribute("data-machine-ball-x"),
+      await canvas.getAttribute("data-machine-ball-y"),
+    ];
+    expect(Number(restored[0])).toBeCloseTo(Number(before[0]), 1);
+    expect(Number(restored[1])).toBeCloseTo(Number(before[1]), 1);
+  }
 });
 
 test("clips the chapter machine to its dark transition", async ({
@@ -1279,6 +1243,7 @@ for (const chapter of [
   { name: "AG1", progress: 0.5, snapshot: "machine-roll.png" },
   { name: "Battlefield", progress: 0.58, snapshot: "machine-drop.png" },
   { name: "BeautyNexos", progress: 0.58, snapshot: "machine-finish.png" },
+  { name: "Finish", progress: 0.65, snapshot: "machine-finale.png" },
 ] as const) {
   test(`@visual ${chapter.name} machine chapter`, async ({
     page,
@@ -1286,6 +1251,7 @@ for (const chapter of [
     test.skip(testInfo.project.name !== "chromium", "Desktop chapter baseline");
     await dismissIntro(page);
     await setTransitionProgress(page, chapter.name, chapter.progress);
+    await page.waitForTimeout(1200);
     await page.getByRole("button", { name: "Pause motion" }).click();
     await page.waitForTimeout(150);
     await expect(page).toHaveScreenshot(chapter.snapshot, {
@@ -1307,6 +1273,7 @@ for (const chapter of [
     progress: 0.58,
     snapshot: "machine-finish-mobile.png",
   },
+  { name: "Finish", progress: 0.65, snapshot: "machine-finale-mobile.png" },
 ] as const) {
   test(`@visual mobile ${chapter.name} machine chapter`, async ({
     page,
@@ -1314,6 +1281,7 @@ for (const chapter of [
     test.skip(testInfo.project.name !== "mobile", "Mobile chapter baseline");
     await dismissIntro(page);
     await setTransitionProgress(page, chapter.name, chapter.progress);
+    await page.waitForTimeout(1200);
     await page.getByRole("button", { name: "Pause motion" }).click();
     await page.waitForTimeout(150);
     await expect(page).toHaveScreenshot(chapter.snapshot, {
@@ -1350,14 +1318,99 @@ test("@visual tablet hero", async ({ page }, testInfo) => {
   });
 });
 
-test("@visual tablet basket chapter", async ({ page }, testInfo) => {
+test("@visual tablet balance chapter", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "tablet", "Tablet chapter baseline");
   await dismissIntro(page);
   await setTransitionProgress(page, "BeautyNexos", 0.58);
+  await page.waitForTimeout(1200);
   await page.getByRole("button", { name: "Pause motion" }).click();
   await page.waitForTimeout(150);
   await expect(page).toHaveScreenshot("machine-finish-tablet.png", {
     animations: "disabled",
     maxDiffPixelRatio: 0.001,
+  });
+});
+
+test("can skip a running intro without a second completion", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Intro lifecycle check");
+  await prepareScene(page);
+  const control = page.getByRole("button", { name: "Hold to wind" });
+  await control.focus();
+  await page.keyboard.down("Space");
+  await expect(
+    page.getByRole("button", { name: "Machine running" }),
+  ).toBeVisible();
+  await page.keyboard.up("Space");
+  await page.getByRole("button", { name: "Skip intro" }).click();
+  await expect(splash(page)).toBeHidden();
+  await page.waitForTimeout(7100);
+  await expect(page.locator("[data-machine-canvas]")).toHaveAttribute(
+    "data-machine-mode",
+    "idle",
+  );
+  await expect(page.locator("[data-experience-content]")).not.toHaveJSProperty(
+    "inert",
+    true,
+  );
+});
+
+test("a hidden tab suspends the intro and its watchdog", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Visibility lifecycle check");
+  test.setTimeout(40000);
+  await prepareScene(page);
+  await page.getByRole("button", { name: "Hold to wind" }).focus();
+  await page.keyboard.down("Space");
+  await expect(
+    page.getByRole("button", { name: "Machine running" }),
+  ).toBeVisible();
+  await page.keyboard.up("Space");
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      value: true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  const canvas = page.locator("[data-machine-canvas]");
+  const progress = await canvas.getAttribute("data-machine-progress");
+  await page.waitForTimeout(12000);
+  await expect(splash(page)).toBeVisible();
+  await expect(canvas).toHaveAttribute("data-machine-progress", progress!);
+  await page.evaluate(() => {
+    Reflect.deleteProperty(document, "hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(splash(page)).toBeHidden({ timeout: 11000 });
+});
+
+test("@visual landscape phone machine keeps its label clear", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "mobile-chromium",
+    "Landscape phone review",
+  );
+  await dismissIntro(page);
+  await page.setViewportSize({ width: 844, height: 390 });
+  await setTransitionProgress(page, "Battlefield", 0.5);
+  await expect(page).toHaveScreenshot("machine-landscape-phone.png", {
+    animations: "disabled",
+    mask: [page.locator("nextjs-portal")],
+  });
+});
+
+test("@visual landscape tablet finale", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "tablet", "Landscape tablet review");
+  await dismissIntro(page);
+  await page.setViewportSize({ width: 1194, height: 834 });
+  await setTransitionProgress(page, "Finish", 0.65);
+  await page.waitForTimeout(1200);
+  await expect(page).toHaveScreenshot("machine-finale-landscape-tablet.png", {
+    animations: "disabled",
+    mask: [page.locator("nextjs-portal")],
   });
 });

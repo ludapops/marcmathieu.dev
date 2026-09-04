@@ -63,9 +63,19 @@ Each chapter states context and dates, role and team boundary, product problem, 
 - Rigid Spatial Index influenced by the compositional clarity of Jlern without copying its layout or language
 - Cursor-proximity Focus Interaction on pointer devices; scroll-position and tap behavior on touch devices
 - Project Accents: AG1 green, Battlefield orange-red, BeautyNexos violet-rose
-- One persistent abstract field of planes, lines, and nodes
+- One persistent tabletop Rube Goldberg machine with wood bases, brass mechanisms, steel rails, and restrained project accents
 - Precise quick motion for focus and navigation; slower cinematic motion between chapters
 - Stable Reading Zones without continuous movement
+
+## Machine narrative
+
+The intro lasts seven seconds after winding. A spring launches a marble into a trigger lever and domino cascade. The last domino releases a counterweight onto the Enter key, revealing the portfolio. Skip remains available while the machine runs.
+
+The existing transitions before AG1, Battlefield, and BeautyNexos contain a tipping cup, counterweight gate with switchback rails, and balance transfer. Each action ends in a resting state. A fourth transition between About and Contact releases a striker onto a bell, then settles without audio or confetti.
+
+Visible rails, pivots, cups, and cords explain each transfer of motion. Shared materials and receiving points connect the separate chapter mechanisms. The chapter sequences scrub in both directions and remain still in Reading Zones.
+
+Portrait phones use shorter tracks, and the intro camera follows overlapping working areas so contact points remain readable. Tablet and landscape layouts fit the complete chapter mechanism while reserving space for navigation and labels. Keyboard operation, touch controls, replay, reduced motion, and the static fallback remain release requirements.
 
 ## Technical shape
 

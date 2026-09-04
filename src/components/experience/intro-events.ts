@@ -2,7 +2,7 @@ export const INTRO_STORAGE_KEY = "marc-portfolio-machine-intro-v3";
 export const INTRO_EVERY_LOAD = process.env.NODE_ENV === "development";
 export const INTRO_HOLD_MS = 900;
 export const INTRO_RESET_MS = 250;
-export const MACHINE_WATCHDOG_MS = 4500;
+export const MACHINE_WATCHDOG_MS = 12000;
 
 export const machineStages = [
   "marble",
