@@ -457,10 +457,15 @@ export function buildMachine(
     );
     box(0.06, 0.28, 0.08, 0.1, -0.1, m.brass, launcher);
     const latch = new THREE.Group();
-    latch.position.set(1.7, -0.35, 0.25);
+    latch.position.set(introLayout.releaseLeverX, -0.35, 0);
     group.add(latch);
     box(0.06, 0.42, 0.09, 0, 0.21, m.steel, latch);
-    box(0.16, 0.06, 0.09, -0.06, 0.4, m.steel, latch);
+    const releaseLink = rod(
+      new THREE.Vector3(introLayout.releaseLeverX, -0.3, -0.3),
+      new THREE.Vector3(introLayout.launcherPivot.x, -0.3, -0.3),
+      0.025,
+      m.steel,
+    );
     const projectile = ball(m.brass);
     projectile.name = "intro-projectile";
     const key = new THREE.Group();
@@ -493,7 +498,8 @@ export function buildMachine(
       position(lead, state.ball);
       trigger.rotation.z = state.lever;
       dominoes.forEach((d, i) => (d.rotation.z = state.dominoes[i]));
-      latch.rotation.z = -state.latch * 0.8;
+      latch.rotation.z = -state.latch;
+      releaseLink.position.y = -0.3 - Math.sin(state.latch) * 0.06;
       launcher.rotation.z = state.launcherAngle;
       position(projectile, { ...state.projectile, rotation: -p * 8 });
       key.position.y = introLayout.key.y - state.key * 0.1;

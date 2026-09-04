@@ -205,3 +205,48 @@ it("keeps falling domino solids separated throughout the cascade", () => {
     }
   }
 });
+
+it("transfers motion without waiting at domino contacts", () => {
+  const end = sampleIntro(5.15 / INTRO_DURATION).dominoes;
+  for (let frame = 1; frame < 2200; frame++) {
+    const time = 2.94 + frame / 1000;
+    const before = sampleIntro(time / INTRO_DURATION).dominoes;
+    const after = sampleIntro((time + 0.001) / INTRO_DURATION).dominoes;
+    before.forEach((angle, index) => {
+      if (angle < -0.001 && angle > end[index] + 0.001)
+        expect(after[index]).toBeLessThan(angle);
+    });
+  }
+});
+
+it("keeps the last domino outside the release lever and loaded catapult", () => {
+  const lastX =
+    introLayout.dominoStart +
+    (introLayout.dominoCount - 1) * introLayout.dominoGap;
+  for (let frame = 0; frame <= 2000; frame++) {
+    const state = sampleIntro(frame / 2000);
+    const angle = state.dominoes[introLayout.dominoCount - 1];
+    const corners = [
+      -introLayout.dominoWidth / 2,
+      introLayout.dominoWidth / 2,
+    ].flatMap((x) =>
+      [0, introLayout.dominoHeight].map((y) =>
+        rotatePoint({ x: lastX, y: -0.35 }, { x, y }, angle),
+      ),
+    );
+    const normal = { x: Math.cos(state.latch), y: -Math.sin(state.latch) };
+    for (const point of corners)
+      expect(
+        (point.x - introLayout.releaseLeverX) * normal.x +
+          (point.y + 0.35) * normal.y,
+      ).toBeLessThanOrEqual(-0.03 + 1e-9);
+    const cupLeft =
+      introLayout.launcherPivot.x +
+      (introLayout.launcherCup.x - 0.27) * Math.cos(state.launcherAngle) -
+      (introLayout.launcherCup.y - MARBLE_RADIUS - 0.1) *
+        Math.sin(state.launcherAngle);
+    expect(Math.max(...corners.map((point) => point.x))).toBeLessThan(
+      cupLeft - 0.05,
+    );
+  }
+});
