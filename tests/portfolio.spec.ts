@@ -217,7 +217,7 @@ test("auto-launches the machine at full wind and enters after the key impact", a
   ).toHaveAttribute("aria-valuenow", "100");
   await expect(canvas).toHaveAttribute(
     "data-machine-stage",
-    /marble|dominoes|seesaw|key|complete/,
+    /marble|dominoes|launch|key|complete/,
   );
   await expect(canvas).toHaveAttribute("data-machine-stage", "complete", {
     timeout: 9_000,
@@ -244,7 +244,7 @@ test("auto-launches the machine at full wind and enters after the key impact", a
           (window as Window & { __machineStages?: string[] }).__machineStages,
       ),
     )
-    .toEqual(["marble", "dominoes", "seesaw", "key", "complete"]);
+    .toEqual(["marble", "dominoes", "launch", "key", "complete"]);
   await page.mouse.up();
   await expect(page.locator("[data-experience-content]")).not.toHaveJSProperty(
     "inert",
@@ -432,7 +432,7 @@ test("tracks the intro reaction through phone-specific camera frames", async ({
             .__responsiveMachineFrames,
       ),
     )
-    .toEqual(["marble", "dominoes", "seesaw", "key", "complete"]);
+    .toEqual(["marble", "dominoes", "launch", "key", "complete"]);
 });
 
 test("switches responsive scene presets without treating landscape phones as tablets", async ({

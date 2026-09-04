@@ -119,12 +119,12 @@ export function ProceduralScene() {
       };
 
       const stageAt = (p: number): MachineStage =>
-        p < 0.35
+        p < 2.45 / INTRO_DURATION
           ? "marble"
-          : p < 0.73
+          : p < 5.11 / INTRO_DURATION
             ? "dominoes"
-            : p < 0.9
-              ? "seesaw"
+            : p < 6.8 / INTRO_DURATION
+              ? "launch"
               : p < 0.99
                 ? "key"
                 : "complete";
@@ -193,13 +193,13 @@ export function ProceduralScene() {
         let height = size.y + 0.5;
         if (index === 0 && viewport === "phone") {
           // The phone follows overlapping working areas; contacts stay in view.
-          const p = driver.progress;
+          const p = (driver.progress * INTRO_DURATION) / 7;
           center.x =
             p < 0.26
               ? -2.6
               : p < 0.58
                 ? THREE.MathUtils.lerp(-2.6, 0.45, clamp((p - 0.26) / 0.22))
-                : THREE.MathUtils.lerp(0.45, 2.25, clamp((p - 0.58) / 0.2));
+                : THREE.MathUtils.lerp(0.45, 2.25, clamp((p - 0.58) / 0.15));
           center.y = 0.3;
           width = p < 0.26 ? 3.7 : 4.1;
           height = 3.3;

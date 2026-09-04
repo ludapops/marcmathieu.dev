@@ -1,6 +1,6 @@
 # Use direct Three.js for the procedural scene
 
-The portfolio uses one procedural tabletop Rube Goldberg machine. The seven-second intro connects a spring, marble, trigger lever, dominoes, counterweight, and Enter key. Three chapter modules carry the same green marble through a tipping cup, counterweight gate, and weighted tipping chute. A fourth module rings a bell before Contact.
+The portfolio uses one procedural tabletop Rube Goldberg machine. The eight-second intro connects a spring, marble, trigger lever, dominoes, spring-loaded catapult, and Enter key. Three chapter modules carry the same green marble through a tipping cup, counterweight gate, and weighted tipping chute. A fourth module rings a bell before Contact.
 
 Three.js owns geometry and rendering. GSAP advances one intro progress value and ScrollTrigger supplies reversible chapter progress. Pure samplers in `mechanics.ts` define positions and contact points; `tabletop-machine.ts` uses the same definitions to build and pose the mechanisms. Rail travel uses distance to derive marble rotation. Replays and scroll jumps evaluate the same state without running a simulation forward from its start.
 

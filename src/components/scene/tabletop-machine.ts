@@ -45,6 +45,7 @@ export function buildMachine(
   m: MachineMaterials,
 ) {
   const group = new THREE.Group();
+  const ownedMaterials: THREE.Material[] = [];
   const accent =
     kind === "counterweight-gate"
       ? m.orange
@@ -68,7 +69,7 @@ export function buildMachine(
     d: number,
     x: number,
     y: number,
-    material = m.wood,
+    material: THREE.Material = m.wood,
     parent: THREE.Object3D = group,
     z = 0,
   ) => {
@@ -411,38 +412,83 @@ export function buildMachine(
     box(2.25, 0.11, 0.62, 0.28, -0.42, m.wood);
     support(-0.55, -0.42);
     support(1.2, -0.42);
-    const latch = box(0.08, 0.65, 0.2, 1.85, -0.07, m.brass);
-    axle({ x: 1.85, y: -0.35 });
+    const launcher = new THREE.Group();
+    launcher.position.set(
+      introLayout.launcherPivot.x,
+      introLayout.launcherPivot.y,
+      0,
+    );
+    group.add(launcher);
+    box(0.85, 0.09, 0.28, -0.2, 0, m.brass, launcher);
+    cup(
+      introLayout.launcherCup.x,
+      introLayout.launcherCup.y - MARBLE_RADIUS - 0.1,
+      launcher,
+      m.brass,
+    );
+    axle(introLayout.launcherPivot);
+    const coilPoints = Array.from({ length: 100 }, (_, i) => {
+      const t = i / 99;
+      return new THREE.Vector3(
+        Math.cos(t * Math.PI * 8) * 0.14,
+        Math.sin(t * Math.PI * 8) * 0.14,
+        0.15 + t * 0.2,
+      );
+    });
+    mesh(
+      new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3(coilPoints),
+        100,
+        0.022,
+        8,
+        false,
+      ),
+      m.brass,
+      launcher,
+    );
+    box(0.06, 0.28, 0.08, 0.1, -0.1, m.brass, launcher);
+    const latch = new THREE.Group();
+    latch.position.set(1.7, -0.35, 0.25);
+    group.add(latch);
+    box(0.06, 0.42, 0.09, 0, 0.21, m.steel, latch);
+    box(0.16, 0.06, 0.09, -0.06, 0.4, m.steel, latch);
+    const projectile = ball(m.brass);
+    projectile.name = "intro-projectile";
     const key = new THREE.Group();
     group.add(key);
-    key.position.set(2.85, -0.46, 0);
-    box(0.95, 0.22, 0.78, 0, 0, m.edge, key);
+    key.position.set(introLayout.key.x, introLayout.key.y, 0);
+    box(0.95, 0.22, 0.78, introLayout.key.x, introLayout.key.y, m.edge);
+    support(introLayout.key.x, introLayout.key.y - 0.11);
     box(0.87, 0.12, 0.7, 0, 0.17, m.ivory, key);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: m.green.color,
+      transparent: true,
+      opacity: 0,
+    });
+    ownedMaterials.push(glowMaterial);
+    box(
+      0.9,
+      0.035,
+      0.73,
+      introLayout.key.x,
+      introLayout.key.y + 0.105,
+      glowMaterial,
+    );
     // Geometric return arrow stays sharp without a texture or a font request.
     box(0.3, 0.014, 0.045, 0, 0.24, m.edge, key);
     box(0.045, 0.014, 0.18, 0.13, 0.24, m.edge, key, -0.07);
     const arrow = box(0.12, 0.014, 0.045, -0.15, 0.24, m.edge, key, -0.025);
     arrow.rotation.y = -0.6;
-    const weight = cylinder(0.25, 0.45, 2.85, 1.12, m.brass);
-    const crossbar = box(1.3, 0.07, 0.1, 2.25, 1.55, m.brass, group, -0.3);
-    support(1.65, crossbar.position.y, -0.3);
-    support(3.1, crossbar.position.y, -0.3);
-    const rope = box(0.025, 0.23, 0.025, 2.85, 1.43, m.edge);
-    const retaining = box(0.9, 0.06, 0.12, 2.3, 0.86, m.brass);
     pose = (p, wind = 0) => {
       const state = sampleIntro(p);
       position(lead, state.ball);
       trigger.rotation.z = state.lever;
       dominoes.forEach((d, i) => (d.rotation.z = state.dominoes[i]));
-      latch.rotation.z = -Math.max(0, (p - 0.73) / 0.04) * 0.55;
-      latch.rotation.z = Math.max(-0.55, latch.rotation.z);
-      retaining.position.x =
-        2.3 - Math.min(1, Math.max(0, (p - 0.73) / 0.04)) * 0.55;
-      weight.position.y = 1.12 - state.weight * 1.125 - state.key * 0.1;
-      key.position.y = -0.46 - state.key * 0.1;
-      const ropeLength = 1.55 - (weight.position.y + 0.225);
-      rope.scale.y = ropeLength / 0.23;
-      rope.position.y = 1.55 - ropeLength / 2;
+      latch.rotation.z = -state.latch * 0.8;
+      launcher.rotation.z = state.launcherAngle;
+      position(projectile, { ...state.projectile, rotation: -p * 8 });
+      key.position.y = introLayout.key.y - state.key * 0.1;
+      glowMaterial.opacity = state.impact;
       const compression = p > 0 ? 1 - state.plunger : wind;
       spring.scale.x = 1 - compression * 0.55;
       plunger.position.x = -3.36 - compression * 0.35;
@@ -451,12 +497,32 @@ export function buildMachine(
   group.scale.x = chapterDirection(kind);
   pose(0);
   const bounds = new THREE.Box3().setFromObject(group);
+  if (kind === "intro") {
+    for (let i = 0; i <= 80; i++) {
+      const { projectile } = sampleIntro(i / 80);
+      bounds.expandByPoint(
+        new THREE.Vector3(
+          projectile.x - MARBLE_RADIUS,
+          projectile.y + MARBLE_RADIUS,
+          0,
+        ),
+      );
+      bounds.expandByPoint(
+        new THREE.Vector3(
+          projectile.x + MARBLE_RADIUS,
+          projectile.y - MARBLE_RADIUS,
+          0,
+        ),
+      );
+    }
+  }
   return {
     group,
     ball: lead,
     pose,
     bounds,
     dispose() {
+      ownedMaterials.forEach((material) => material.dispose());
       group.traverse((object) => {
         if (object instanceof THREE.Mesh) object.geometry.dispose();
       });

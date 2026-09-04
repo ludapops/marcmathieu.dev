@@ -69,7 +69,7 @@ Each chapter states context and dates, role and team boundary, product problem, 
 
 ## Machine narrative
 
-The intro lasts seven seconds after winding. A spring launches a marble into a trigger lever and domino cascade. The last domino releases a counterweight onto the Enter key, revealing the portfolio. Skip remains available while the machine runs.
+The intro lasts eight seconds after winding. A spring launches a marble into a trigger lever and domino cascade. The last domino releases a spring-loaded catapult. Its brass ball arcs onto the Enter key, compresses the keycap, bounces once, and settles before revealing the portfolio. A brief green light marks the impact. Skip remains available while the machine runs.
 
 The transitions form a continuous route for one green marble: AG1 travels left to right through a tipping cup; Battlefield receives it at the right and returns it left through a counterweight gate and switchback rails; BeautyNexos receives it at the left and tips a weighted chute to send it right. Matching brass entrance and exit chutes use the same horizontal coordinates. A fourth transition between About and Contact receives the marble from the right and releases a striker onto a bell, then settles without audio or confetti.
 

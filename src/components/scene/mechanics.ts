@@ -1,6 +1,6 @@
 export type Point = Readonly<{ x: number; y: number }>;
 export const MARBLE_RADIUS = 0.16;
-export const INTRO_DURATION = 7;
+export const INTRO_DURATION = 8;
 export const clamp = (n: number) => Math.max(0, Math.min(1, n));
 export const phase = (p: number, start: number, end: number) =>
   clamp((p - start) / (end - start));
@@ -226,22 +226,65 @@ export const introLayout = {
   dominoGap: 0.42,
   dominoCount: 5,
   key: { x: 2.85, y: -0.46 },
+  launcherPivot: { x: 1.85, y: -0.2 },
+  launcherCup: { x: -0.38, y: 0.18 },
+  releaseAngle: -1.2,
+  releaseTime: 5.5,
+  impactTime: 6.8,
 };
 export function sampleIntro(progress: number) {
-  const p = clamp(progress);
+  const seconds = clamp(progress) * INTRO_DURATION;
+  const p = seconds / 7;
   const ball = travel(introLayout.rail, phase(p, 0.035, 0.35) ** 1.4);
   const lever = -0.85 * ease(phase(p, 0.35, 0.43));
   const dominoes = Array.from(
     { length: introLayout.dominoCount },
     (_, i) => -1.22 * ease(phase(p, 0.42 + i * 0.061, 0.5 + i * 0.061)),
   );
-  const weight = phase(p, 0.77, 0.93) ** 2;
-  const key = ease(phase(p, 0.93, 0.97));
+  const launcherAngle =
+    introLayout.releaseAngle * ease(phase(seconds, 5.2, 5.5));
+  const release = rotatePoint(
+    introLayout.launcherPivot,
+    introLayout.launcherCup,
+    introLayout.releaseAngle,
+  );
+  const flight = phase(
+    seconds,
+    introLayout.releaseTime,
+    introLayout.impactTime,
+  );
+  const contactY = introLayout.key.y + 0.24 + MARBLE_RADIUS;
+  const key =
+    ease(phase(seconds, 6.8, 6.92)) *
+    (1 -
+      0.35 * ease(phase(seconds, 6.92, 7.12)) +
+      0.35 * ease(phase(seconds, 7.12, 7.35)));
+  const bounce = phase(seconds, 6.92, 7.35);
+  const projectile =
+    seconds < introLayout.releaseTime
+      ? rotatePoint(
+          introLayout.launcherPivot,
+          introLayout.launcherCup,
+          launcherAngle,
+        )
+      : seconds < introLayout.impactTime
+        ? {
+            x: mix(release.x, introLayout.key.x, flight),
+            y: mix(release.y, contactY, flight) + 3.4 * flight * (1 - flight),
+          }
+        : {
+            x: introLayout.key.x,
+            y: contactY - key * 0.1 + 0.15 * Math.sin(Math.PI * bounce),
+          };
   return {
     ball,
     lever,
     dominoes,
-    weight,
+    launcherAngle,
+    projectile,
+    latch: ease(phase(seconds, 5.11, 5.2)),
+    impact:
+      ease(phase(seconds, 6.8, 6.9)) * (1 - ease(phase(seconds, 7.35, 7.8))),
     key,
     plunger: ease(phase(p, 0, 0.035)),
   };

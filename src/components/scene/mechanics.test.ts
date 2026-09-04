@@ -8,6 +8,7 @@ import {
   cupLayout,
   gateLayout,
   INTRO_DURATION,
+  introLayout,
   MARBLE_RADIUS,
   rotatePoint,
   sampleBalance,
@@ -103,12 +104,15 @@ it("rolls by arc length, including through a turn", () => {
   });
 });
 it("finishes the intro after its causal sequence", () => {
-  expect(INTRO_DURATION).toBe(7);
-  expect(sampleIntro(0.34).lever).toBeCloseTo(0);
-  expect(sampleIntro(0.41).dominoes.every((angle) => angle === 0)).toBe(true);
-  expect(sampleIntro(0.76).weight).toBe(0);
-  expect(sampleIntro(0.92).key).toBe(0);
+  expect(INTRO_DURATION).toBe(8);
+  expect(sampleIntro(2.38 / 8).lever).toBeCloseTo(0);
+  expect(sampleIntro(2.87 / 8).dominoes.every((angle) => angle === 0)).toBe(
+    true,
+  );
+  expect(sampleIntro(5.1 / 8).launcherAngle).toBeCloseTo(0);
+  expect(sampleIntro(6.79 / 8).key).toBe(0);
   expect(sampleIntro(1).key).toBe(1);
+  expect(sampleIntro(1).impact).toBe(0);
 });
 
 it("reverses spin when the rail reverses direction", () => {
@@ -139,3 +143,31 @@ for (const compact of [false, true]) {
     );
   });
 }
+
+it("releases from the cup, lands on the key, and resets without history", () => {
+  const at = (seconds: number) => sampleIntro(seconds / INTRO_DURATION);
+  const release = rotatePoint(
+    introLayout.launcherPivot,
+    introLayout.launcherCup,
+    introLayout.releaseAngle,
+  );
+  expect(at(5.5).projectile).toEqual(release);
+  expect(at(6.8).projectile.x).toBe(introLayout.key.x);
+  expect(at(6.8).projectile.y).toBeCloseTo(
+    introLayout.key.y + 0.24 + MARBLE_RADIUS,
+  );
+  for (const seconds of [5.2, 5.5, 6.8, 6.92, 7.35]) {
+    const before = at(seconds - 0.000001).projectile;
+    const after = at(seconds).projectile;
+    expect(before.x).toBeCloseTo(after.x, 4);
+    expect(before.y).toBeCloseTo(after.y, 4);
+  }
+  expect(at(6.15).projectile.y).toBeGreaterThan(release.y + 0.5);
+  expect(at(7.12).projectile.y).toBeGreaterThan(at(7.35).projectile.y);
+  const initial = at(0);
+  at(8);
+  expect(at(0)).toEqual(initial);
+  expect(at(8).projectile.y).toBeCloseTo(
+    introLayout.key.y + 0.24 + MARBLE_RADIUS - 0.1,
+  );
+});

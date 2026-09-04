@@ -4,7 +4,7 @@ Verified on September 4, 2026, on branch `astra-attempt-1-new-rube-goldberg-mach
 
 ## Checks
 
-- `pnpm check`: lint, type checks, 26 unit tests, and production build passed.
+- `pnpm check`: lint, type checks, 27 unit tests, and production build passed.
 - Playwright: all 103 applicable functional checks passed across desktop Chromium, mobile WebKit, mobile Chromium, and tablet WebKit. The final comparison of 18 visual baselines passed after reviewing the new machine framing. Device-specific tests skip projects to which they do not apply.
 - Production browser review: intro playback and all four chapters at 1440 × 1000, 834 × 1194, 1194 × 834, 390 × 844, and 844 × 390, with no console errors.
 - The original implementation was measured at 82 intro draw calls and 43–55 chapter draw calls, including shadow passes. The browser suite enforces the draw-call budget after the framing and handoff changes.
@@ -17,6 +17,12 @@ The checks cover winding by pointer, touch, and keyboard; incomplete holds; skip
 The chapter samplers also check matching exit and entry positions, alternating travel direction, a held marble before gate release, the same marble crossing the balance, bell settling, and rotation derived from travel distance and direction. Browser regression checks compare world-space handoffs and rendered scale at several forward and reverse scroll positions across all four chapters. Intro checks verify that the machine viewport clears the identity and controls.
 
 The follow-up framing was also visually reviewed at 1728 × 925, 834 × 1194, 390 × 844, and 844 × 390. The desktop chapter scale measured 114.327681 pixels per world unit throughout scrolling and across all four chapters; scale adapts when the viewport changes, not when the chapter enters or leaves view.
+
+## Catapult ending
+
+The intro now runs for eight seconds. The original opening retains its timing; the launcher releases at 5.5 seconds and lands at 6.8 seconds. Unit checks verify release from the cup, continuous landing, compression only after impact, one settling bounce, and deterministic reset. The browser stage sequence is now marble → dominoes → launch → key → complete.
+
+Launch, apex, impact, and settling were visually reviewed at 1728 × 925, 834 × 1194, 1194 × 834, 390 × 844, and 844 × 390. These browser sessions reported no console or page errors. The phone camera finishes its pan before launch and keeps the flight and key together in view.
 
 ## Repeat locally
 

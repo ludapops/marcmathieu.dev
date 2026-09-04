@@ -7,7 +7,7 @@ export const MACHINE_WATCHDOG_MS = 12000;
 export const machineStages = [
   "marble",
   "dominoes",
-  "seesaw",
+  "launch",
   "key",
   "complete",
 ] as const;
