@@ -57,12 +57,13 @@ async function setTransitionProgress(
   });
   await page.evaluate(
     ({ bounds: section, progress: targetProgress }) =>
-      window.scrollTo(
-        0,
-        section.top -
+      window.scrollTo({
+        top:
+          section.top -
           section.viewportHeight +
           targetProgress * (section.height + section.viewportHeight),
-      ),
+        behavior: "instant",
+      }),
     { bounds, progress },
   );
   await page.waitForTimeout(250);
@@ -960,7 +961,7 @@ test("runs and reverses all four tabletop mechanisms", async ({ page }) => {
     ["AG1", "tipping-cup"],
     ["Battlefield", "counterweight-gate"],
     ["BeautyNexos", "balance-transfer"],
-    ["Finish", "bell"],
+    ["Finish", "confetti"],
   ] as const) {
     await setTransitionProgress(page, name, 0.3);
     await expect(canvas).toHaveAttribute("data-machine-action", action);
@@ -987,46 +988,29 @@ test("runs and reverses all four tabletop mechanisms", async ({ page }) => {
   }
 });
 
-test("clips the chapter machine to its dark transition", async ({
+test("keeps connecting chutes outside the reading content", async ({
   page,
-}, testInfo) => {
-  test.skip(testInfo.project.name !== "chromium", "WebGL boundary check");
-
+}) => {
   await dismissIntro(page);
-
-  const transition = page.getByRole("region", { name: "AG1", exact: true });
-  const transitionTop = await transition.evaluate(
-    (element) => element.getBoundingClientRect().top + window.scrollY,
+  const reading = page.locator("article#ag1");
+  await reading.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  const bounds = await reading.boundingBox();
+  const gutter = await page.evaluate(() =>
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--machine-gutter",
+      ),
+    ),
   );
-  await page.evaluate(
-    (top) => window.scrollTo(0, top - window.innerHeight * 0.58),
-    transitionTop,
+  expect(bounds!.x).toBeGreaterThanOrEqual(gutter);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
+    page.viewportSize()!.width - gutter,
   );
-  await page.waitForTimeout(250);
-
-  const boundary = await page.evaluate(() => {
-    const transitionElement = document.querySelector<HTMLElement>(
-      '[data-machine-chapter="ag1"]',
-    );
-    const canvas = document.querySelector<HTMLCanvasElement>(
-      "[data-machine-canvas]",
-    );
-    const shell = document.querySelector<HTMLElement>("[data-scene-shell]");
-    if (!transitionElement || !canvas || !shell) return null;
-
-    return {
-      transitionTop: transitionElement.getBoundingClientRect().top,
-      clipTop: Number(canvas.dataset.machineClipTop),
-      clipPath: getComputedStyle(shell).clipPath,
-    };
-  });
-
-  expect(boundary).not.toBeNull();
-  expect(boundary?.transitionTop).toBeGreaterThan(0);
-  expect(
-    Math.abs((boundary?.clipTop ?? 0) - (boundary?.transitionTop ?? 0)),
-  ).toBeLessThan(1);
-  expect(boundary?.clipPath).not.toBe("none");
+  await expect(page.locator("[data-machine-canvas]")).toHaveAttribute(
+    "data-machine-marbles",
+    "1",
+  );
 });
 
 test("uses varied content motion without scroll blur", async ({ page }) => {
@@ -1251,7 +1235,13 @@ for (const chapter of [
     test.skip(testInfo.project.name !== "chromium", "Desktop chapter baseline");
     await dismissIntro(page);
     await setTransitionProgress(page, chapter.name, chapter.progress);
-    await page.waitForTimeout(1200);
+    if (chapter.name === "Finish")
+      await expect(page.locator("[data-machine-canvas]")).toHaveAttribute(
+        "data-finale-state",
+        "settled",
+        { timeout: 6000 },
+      );
+    else await page.waitForTimeout(1200);
     await page.getByRole("button", { name: "Pause motion" }).click();
     await page.waitForTimeout(150);
     await expect(page).toHaveScreenshot(chapter.snapshot, {
@@ -1281,7 +1271,13 @@ for (const chapter of [
     test.skip(testInfo.project.name !== "mobile", "Mobile chapter baseline");
     await dismissIntro(page);
     await setTransitionProgress(page, chapter.name, chapter.progress);
-    await page.waitForTimeout(1200);
+    if (chapter.name === "Finish")
+      await expect(page.locator("[data-machine-canvas]")).toHaveAttribute(
+        "data-finale-state",
+        "settled",
+        { timeout: 6000 },
+      );
+    else await page.waitForTimeout(1200);
     await page.getByRole("button", { name: "Pause motion" }).click();
     await page.waitForTimeout(150);
     await expect(page).toHaveScreenshot(chapter.snapshot, {
@@ -1408,7 +1404,11 @@ test("@visual landscape tablet finale", async ({ page }, testInfo) => {
   await dismissIntro(page);
   await page.setViewportSize({ width: 1194, height: 834 });
   await setTransitionProgress(page, "Finish", 0.65);
-  await page.waitForTimeout(1200);
+  await expect(page.locator("[data-machine-canvas]")).toHaveAttribute(
+    "data-finale-state",
+    "settled",
+    { timeout: 6000 },
+  );
   await expect(page).toHaveScreenshot("machine-finale-landscape-tablet.png", {
     animations: "disabled",
     mask: [page.locator("nextjs-portal")],
@@ -1457,13 +1457,7 @@ test("keeps a fixed chapter scale and matching handoffs through scroll", async (
   const canvas = page.locator("[data-machine-canvas]");
   const names = ["AG1", "Battlefield", "BeautyNexos", "Finish"] as const;
   let expectedScale: number | undefined;
-  let lastExit: number | undefined;
   for (const name of names) {
-    await setTransitionProgress(page, name, 0.05);
-    if (lastExit !== undefined)
-      expect(
-        Number(await canvas.getAttribute("data-machine-ball-x")),
-      ).toBeCloseTo(lastExit, 4);
     for (const progress of [0.2, 0.5, 0.8, 0.5]) {
       await setTransitionProgress(page, name, progress);
       const scale = Number(
@@ -1472,7 +1466,79 @@ test("keeps a fixed chapter scale and matching handoffs through scroll", async (
       expectedScale ??= scale;
       expect(scale).toBeCloseTo(expectedScale, 5);
     }
-    await setTransitionProgress(page, name, 0.95);
-    lastExit = Number(await canvas.getAttribute("data-machine-ball-x"));
   }
+});
+
+test("runs, pauses, and replays the timed confetti finale", async ({
+  page,
+}) => {
+  await dismissIntro(page);
+  const canvas = page.locator("[data-machine-canvas]");
+  await setTransitionProgress(page, "Finish", 0.56);
+  await expect(canvas).toHaveAttribute("data-finale-state", "playing");
+  await page.waitForTimeout(850);
+  await page.getByRole("button", { name: "Pause motion" }).click();
+  const frozen = await canvas.getAttribute("data-finale-time");
+  await page.waitForTimeout(350);
+  expect(await canvas.getAttribute("data-finale-time")).toBe(frozen);
+  await page.getByRole("button", { name: "Resume motion" }).click();
+  await expect(canvas).toHaveAttribute("data-finale-state", "settled", {
+    timeout: 6000,
+  });
+  await page
+    .getByRole("button", { name: "Replay finale", exact: true })
+    .click();
+  await expect(canvas).toHaveAttribute("data-finale-state", "playing");
+  await expect(canvas).toHaveAttribute("data-finale-state", "settled", {
+    timeout: 6000,
+  });
+  await setTransitionProgress(page, "Finish", 0.2);
+  await setTransitionProgress(page, "Finish", 0.56);
+  await expect(canvas).toHaveAttribute("data-finale-state", "settled");
+});
+
+test("suspends confetti while its section is offscreen", async ({ page }) => {
+  await dismissIntro(page);
+  await setTransitionProgress(page, "Finish", 0.56);
+  const canvas = page.locator("[data-machine-canvas]");
+  await expect(canvas).toHaveAttribute("data-finale-state", "playing");
+  await page.waitForTimeout(700);
+  await page.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));
+  await page.waitForTimeout(100);
+  const frozen = await canvas.getAttribute("data-finale-time");
+  await page.waitForTimeout(500);
+  expect(await canvas.getAttribute("data-finale-time")).toBe(frozen);
+  await setTransitionProgress(page, "Finish", 0.56);
+  await expect(canvas).toHaveAttribute("data-finale-state", "settled", {
+    timeout: 6000,
+  });
+});
+
+test("shows the static finale after losing WebGL", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Runtime WebGL loss");
+  await dismissIntro(page);
+  await setTransitionProgress(page, "Finish", 0.56);
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      "[data-machine-canvas]",
+    );
+    const context = canvas?.getContext("webgl2");
+    const extension = context?.getExtension("WEBGL_lose_context");
+    if (!extension) throw new Error("WebGL loss extension unavailable");
+    extension.loseContext();
+  });
+  await expect(
+    page.getByRole("img", {
+      name: "An open confetti hopper above a completed machine",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Replay finale", exact: true }),
+  ).toBeHidden();
+  await expect(page.locator("html")).not.toHaveAttribute(
+    "data-connected-machine",
+    "ready",
+  );
 });

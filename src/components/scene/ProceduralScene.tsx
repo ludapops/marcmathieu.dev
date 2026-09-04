@@ -13,12 +13,7 @@ import {
   introEvents,
   type MachineStage,
 } from "@/components/experience/intro-events";
-import {
-  chapterActions,
-  clamp,
-  INTRO_DURATION,
-  type MachineKind,
-} from "./mechanics";
+import { clamp, INTRO_DURATION, type MachineKind } from "./mechanics";
 import { buildMachine, createMachineMaterials } from "./tabletop-machine";
 import {
   fitPerspectiveDistance,
@@ -26,6 +21,7 @@ import {
   getIntroViewport,
   sceneViewportPresets,
 } from "./scene-viewport";
+import { createConnectedMachine } from "./connected-machine";
 import styles from "./Scene.module.css";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -41,6 +37,7 @@ export function ProceduralScene() {
       if (!canvasElement || !shellElement) return;
       const canvas = canvasElement;
       const shell = shellElement;
+      let disposed = false;
       let renderer: THREE.WebGLRenderer;
       try {
         renderer = new THREE.WebGLRenderer({
@@ -87,7 +84,7 @@ export function ProceduralScene() {
       let compact = innerWidth < 600;
       let machines = makeMachines();
       function makeMachines() {
-        const kinds: MachineKind[] = ["intro", ...chapterActions];
+        const kinds: MachineKind[] = ["intro"];
         return kinds.map((kind) => {
           const machine = buildMachine(kind, compact, materials);
           machine.group.visible = false;
@@ -98,8 +95,13 @@ export function ProceduralScene() {
       let introActive = document.documentElement.dataset.introState !== "seen";
       let running = false;
       let paused = localStorage.getItem("portfolio-motion-paused") === "true";
-      let activeIndex = -1;
-      let activeProgress = 0;
+      const connected = createConnectedMachine(
+        renderer,
+        canvas,
+        shell,
+        chapters,
+        materials,
+      );
       let windProgress = 0;
       let lastStage: MachineStage | null = null;
       let sequence: gsap.core.Tween | null = null;
@@ -109,8 +111,7 @@ export function ProceduralScene() {
       const target = new THREE.Vector3();
       const size = new THREE.Vector3();
       const center = new THREE.Vector3();
-      const ballPosition = new THREE.Vector3();
-      const chapterBounds = new THREE.Box3();
+
       let introViewport = {
         left: 0,
         top: 0,
@@ -130,6 +131,10 @@ export function ProceduralScene() {
                 : "complete";
       function renderNow() {
         if (document.hidden || renderer.getContext().isContextLost()) return;
+        if (!introActive) {
+          connected.update();
+          return;
+        }
         camera.lookAt(target);
         renderer.render(scene, camera);
         canvas.dataset.machineDrawCalls = String(renderer.info.render.calls);
@@ -144,9 +149,6 @@ export function ProceduralScene() {
       function frameMachine(index: number) {
         const machine = machines[index];
         if (!machine) return;
-        const viewWidth = Math.round(
-          window.visualViewport?.width ?? innerWidth,
-        );
         const viewHeight = Math.round(
           window.visualViewport?.height ?? innerHeight,
         );
@@ -165,26 +167,7 @@ export function ProceduralScene() {
           machine.bounds.getCenter(center);
           canvas.dataset.machineViewportLeft = introViewport.left.toFixed(2);
           canvas.dataset.machineViewportTop = introViewport.top.toFixed(2);
-        } else {
-          const rect = chapters[index - 1].getBoundingClientRect();
-          const labelSpace = viewHeight < 500 ? 70 : compact ? 95 : 130;
-          const topSpace = viewHeight < 500 ? 35 : 50;
-          stageWidth = viewWidth;
-          stageHeight = Math.max(120, rect.height - labelSpace - topSpace);
-          renderer.setViewport(
-            0,
-            viewHeight - rect.top - topSpace - stageHeight,
-            stageWidth,
-            stageHeight,
-          );
-          // Every chapter uses the same fixed world frame. Scrolling only translates its viewport.
-          chapterBounds.makeEmpty();
-          machines
-            .slice(1)
-            .forEach((chapter) => chapterBounds.union(chapter.bounds));
-          chapterBounds.getSize(size);
-          chapterBounds.getCenter(center);
-        }
+        } else return;
         camera.aspect = stageWidth / stageHeight;
         camera.updateProjectionMatrix();
         canvas.dataset.machineViewportWidth = stageWidth.toFixed(2);
@@ -247,35 +230,6 @@ export function ProceduralScene() {
         canvas.dataset.machineMode = "intro";
         render();
       }
-      function setChapter(index: number, progress: number) {
-        if (introActive) return;
-        activeIndex = index;
-        activeProgress = progress;
-        const rect = chapters[index]?.getBoundingClientRect();
-        if (!rect) return;
-        const top = Math.max(0, Math.min(innerHeight, rect.top));
-        const bottom = Math.max(
-          0,
-          Math.min(innerHeight, innerHeight - rect.bottom),
-        );
-        shell.style.clipPath = `inset(${top}px 0px ${bottom}px 0px)`;
-        canvas.dataset.machineClipTop = top.toFixed(2);
-        canvas.dataset.machineClipBottom = bottom.toFixed(2);
-        show(index + 1);
-        const storyProgress = clamp((progress - 0.18) / 0.52);
-        if (!paused) machines[index + 1].pose(storyProgress);
-        const ball = machines[index + 1].ball;
-        machines[index + 1].group.updateMatrixWorld(true);
-        ball.getWorldPosition(ballPosition);
-        canvas.dataset.machineBallX = ballPosition.x.toFixed(4);
-        canvas.dataset.machineBallY = ballPosition.y.toFixed(4);
-        frameMachine(index + 1);
-        canvas.dataset.machineMode = "chapter";
-        canvas.dataset.machineChapter = String(index + 1);
-        canvas.dataset.machineAction = chapterActions[index];
-        if (!paused) canvas.dataset.machineProgress = progress.toFixed(4);
-        render();
-      }
       function resize() {
         const width = Math.max(
           1,
@@ -322,11 +276,7 @@ export function ProceduralScene() {
         if (introActive) {
           show(0);
           poseIntro();
-        } else if (activeIndex >= 0) setChapter(activeIndex, activeProgress);
-        else {
-          canvas.style.opacity = "0";
-          shell.style.visibility = "hidden";
-        }
+        } else connected.measure();
       }
       function finishIntro() {
         sequence?.kill();
@@ -341,18 +291,9 @@ export function ProceduralScene() {
         shell.style.visibility = "hidden";
         shell.style.removeProperty("clip-path");
         ScrollTrigger.refresh();
-        const visible = chapters.findIndex((element) => {
-          const r = element.getBoundingClientRect();
-          return r.top < innerHeight && r.bottom > 0;
-        });
-        if (visible >= 0) {
-          const r = chapters[visible].getBoundingClientRect();
-          setChapter(
-            visible,
-            clamp((innerHeight - r.top) / (innerHeight + r.height)),
-          );
-        }
+        connected.setEnabled(true);
       }
+
       function replay() {
         if (renderer.getContext().isContextLost()) {
           dispatchMachineWebglFailure();
@@ -365,7 +306,7 @@ export function ProceduralScene() {
         lastStage = null;
         running = false;
         introActive = true;
-        activeIndex = -1;
+        connected.setEnabled(false);
         shell.style.removeProperty("clip-path");
         delete canvas.dataset.machineStage;
         delete canvas.dataset.machineAction;
@@ -442,10 +383,10 @@ export function ProceduralScene() {
         paused = Boolean(detail.paused);
         if (paused || document.hidden) sequence?.pause();
         else sequence?.resume();
-        if (!paused && activeIndex >= 0)
-          setChapter(activeIndex, activeProgress);
+        connected.setPaused(paused);
       }
       function visibility() {
+        connected.update();
         if (paused || document.hidden) sequence?.pause();
         else {
           sequence?.resume();
@@ -454,27 +395,16 @@ export function ProceduralScene() {
       }
       function contextLost(event: Event) {
         event.preventDefault();
+        connected.setEnabled(false);
         sequence?.kill();
         canvas.hidden = true;
         shell.removeAttribute("data-webgl");
         dispatchMachineWebglFailure();
       }
-      const triggers = chapters.map((element, index) =>
-        ScrollTrigger.create({
-          trigger: element,
-          start: "top bottom",
-          end: "bottom top",
-          onEnter: (self) => setChapter(index, self.progress),
-          onEnterBack: (self) => setChapter(index, self.progress),
-          onUpdate: (self) => setChapter(index, self.progress),
-          onLeave: () => {
-            if (activeIndex === index) canvas.style.opacity = "0";
-          },
-          onLeaveBack: () => {
-            if (activeIndex === index) canvas.style.opacity = "0";
-          },
-        }),
-      );
+      function scroll() {
+        if (!introActive) connected.update();
+      }
+      window.addEventListener("scroll", scroll, { passive: true });
       resize();
       renderNow();
       readyFrame = requestAnimationFrame(() => {
@@ -486,6 +416,17 @@ export function ProceduralScene() {
       const controls = document.querySelector("[data-machine-control]");
       if (identity) layoutObserver.observe(identity);
       if (controls) layoutObserver.observe(controls);
+      const content = document.querySelector("main");
+      if (content) layoutObserver.observe(content);
+      document
+        .querySelectorAll("main article, [data-machine-chapter]")
+        .forEach((element) => layoutObserver.observe(element));
+      connected.setPaused(paused);
+      if (!introActive) connected.setEnabled(true);
+      document.fonts.ready.then(() => {
+        if (!disposed && canvas.isConnected && !introActive)
+          connected.measure();
+      });
       window.addEventListener("resize", resize);
       window.visualViewport?.addEventListener("resize", resize);
       window.addEventListener(introEvents.wind, wind);
@@ -496,10 +437,12 @@ export function ProceduralScene() {
       document.addEventListener("visibilitychange", visibility);
       canvas.addEventListener("webglcontextlost", contextLost);
       return () => {
+        disposed = true;
         cancelAnimationFrame(frame);
         cancelAnimationFrame(readyFrame);
         sequence?.kill();
-        triggers.forEach((trigger) => trigger.kill());
+        window.removeEventListener("scroll", scroll);
+        connected.dispose();
         layoutObserver.disconnect();
         window.removeEventListener("resize", resize);
         window.visualViewport?.removeEventListener("resize", resize);

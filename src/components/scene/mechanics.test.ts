@@ -12,7 +12,7 @@ import {
   MARBLE_RADIUS,
   rotatePoint,
   sampleBalance,
-  sampleBell,
+  sampleFinale,
   sampleCup,
   sampleGate,
   sampleIntro,
@@ -58,20 +58,17 @@ for (const compact of [false, true]) {
           layout.outgoing.at(-1)!,
         );
       });
-      it("rings only after release and settles completely", () => {
-        expect(sampleBell(0.42, compact).strike).toBe(0);
-        expect(sampleBell(0.62, compact).bellAngle).toBe(0);
-        expect(Math.abs(sampleBell(0.67, compact).bellAngle)).toBeGreaterThan(
-          0,
-        );
-        expect(sampleBell(1, compact).bellAngle).toBe(0);
+      it("opens the hopper only after the marble releases the counterweight", () => {
+        expect(sampleFinale(0.5, compact).lift).toBe(0);
+        expect(sampleFinale(0.75, compact).doors).toBe(0);
+        expect(sampleFinale(1, compact).doors).toBe(1);
       });
       it("has continuous trajectories and can seek backward without history", () => {
         for (const sample of [
           sampleCup,
           sampleGate,
           sampleBalance,
-          sampleBell,
+          sampleFinale,
         ]) {
           const saved = sample(0.43, compact);
           let previous = sample(0, compact).ball;

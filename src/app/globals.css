@@ -19,6 +19,7 @@
   --font-display-bold: var(--font-zilla-slab-bold), Georgia, serif;
   --font-body: var(--font-geist-sans), Arial, sans-serif;
   --page-pad: clamp(1rem, 2.5vw, 2.5rem);
+  --machine-gutter: 64px;
   --grid-gap: clamp(0.75rem, 1.2vw, 1.5rem);
 }
 
@@ -133,5 +134,16 @@ button:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --machine-gutter: 48px;
+  }
+}
+@media (max-width: 599px) {
+  :root {
+    --machine-gutter: 28px;
   }
 }

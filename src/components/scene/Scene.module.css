@@ -1,7 +1,7 @@
 .shell {
   position: fixed;
   inset: 0;
-  z-index: 1;
+  z-index: 3;
   overflow: hidden;
   pointer-events: none;
 }
@@ -221,4 +221,10 @@
   .veilPulse {
     animation: none;
   }
+}
+
+:global(html[data-intro-state="seen"])
+  .shell:not([data-webgl="ready"])
+  .fallback {
+  display: none;
 }

@@ -428,3 +428,11 @@
     margin-top: 1rem;
   }
 }
+
+.projectSequence > :nth-child(2) {
+  margin-inline: var(--machine-gutter);
+}
+.experience,
+.about {
+  padding-inline: max(var(--page-pad), calc(var(--machine-gutter) + 12px));
+}

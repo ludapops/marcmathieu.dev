@@ -24,7 +24,7 @@
 }
 
 .transition p span,
-.transition div {
+.transition .helper {
   font-family: var(--font-body);
   font-size: 0.68rem;
   letter-spacing: 0.1em;
@@ -32,12 +32,12 @@
 }
 
 .transition p,
-.transition div {
+.transition .helper {
   position: relative;
   z-index: 2;
 }
 
-.transition div {
+.transition .helper {
   writing-mode: vertical-rl;
 }
 
@@ -55,7 +55,69 @@
     font-size: clamp(2.5rem, 13vw, 4rem);
   }
 
-  .transition div {
+  .transition .helper {
     padding-bottom: 0.2rem;
   }
+}
+
+.finaleControls {
+  position: absolute;
+  right: var(--page-pad);
+  bottom: var(--page-pad);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+.finaleControls button {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  color: var(--paper);
+  border: 1px solid var(--machine-brass);
+  background: var(--machine-veil);
+  border-radius: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.finaleControls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.finaleControls span {
+  font-size: 0.65rem;
+  max-width: 22ch;
+  text-align: right;
+}
+.transition:has(.finaleControls) .helper {
+  display: none;
+}
+.staticFinale {
+  position: absolute;
+  width: min(80%, 800px);
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  color: var(--machine-brass);
+}
+:global(html[data-connected-machine="ready"]) .staticFinale {
+  display: none;
+}
+:global(html:not([data-connected-machine="ready"])) .finaleControls {
+  display: none;
+}
+@media (max-width: 599px) {
+  .transition:has(.finaleControls) p {
+    font-size: 2.2rem;
+  }
+  .finaleControls {
+    max-width: 46%;
+  }
+}
+
+.transition {
+  padding-inline: max(var(--page-pad), calc(var(--machine-gutter) + 12px));
+}
+.finaleControls {
+  right: max(var(--page-pad), calc(var(--machine-gutter) + 12px));
 }

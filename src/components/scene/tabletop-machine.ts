@@ -1,20 +1,17 @@
 import * as THREE from "three";
 import {
   balanceLayout,
-  bellLayout,
+  finaleLayout,
   cupLayout,
   gateLayout,
   introLayout,
   MARBLE_RADIUS,
   sampleBalance,
-  sampleBell,
+  sampleFinale,
   sampleCup,
   sampleGate,
   sampleIntro,
   chapterDirection,
-  chapterSpan,
-  HANDOFF_TOP,
-  HANDOFF_BOTTOM,
   type MachineKind,
   type Point,
 } from "./mechanics";
@@ -154,21 +151,32 @@ export function buildMachine(
   };
   const baseY = kind === "intro" ? -1.05 : -1.95;
   const span = kind === "intro" ? 4.7 : compact ? 1.85 : 3.0;
-  box(span * 2, 0.18, 1.3, kind === "intro" ? 0.5 : 0, baseY, m.wood);
-  box(span * 2, 0.055, 1.34, kind === "intro" ? 0.5 : 0, baseY - 0.11, m.edge);
-  [-span + 0.24, span - 0.24].forEach((x) => {
-    for (const z of [-0.42, 0.42])
-      box(
-        0.24,
-        0.16,
-        0.24,
-        x + (kind === "intro" ? 0.5 : 0),
-        baseY - 0.2,
-        m.edge,
-        group,
-        z,
-      );
-  });
+  if (kind === "intro") {
+    box(span * 2, 0.18, 1.3, kind === "intro" ? 0.5 : 0, baseY, m.wood);
+    box(
+      span * 2,
+      0.055,
+      1.34,
+      kind === "intro" ? 0.5 : 0,
+      baseY - 0.11,
+      m.edge,
+    );
+    [-span + 0.24, span - 0.24].forEach((x) => {
+      for (const z of [-0.42, 0.42])
+        box(
+          0.24,
+          0.16,
+          0.24,
+          x + (kind === "intro" ? 0.5 : 0),
+          baseY - 0.2,
+          m.edge,
+          group,
+          z,
+        );
+    });
+  } else {
+    box(span * 2, 0.07, 0.2, 0, baseY, m.brass);
+  }
   const support = (x: number, y: number, z = -0.26) => {
     rod(
       new THREE.Vector3(x, baseY + 0.1, z),
@@ -225,21 +233,9 @@ export function buildMachine(
     object.position.set(point.x, point.y, 0);
     object.rotation.z = point.rotation;
   };
-  const lead = ball(m.green);
+  const lead = kind === "intro" ? ball(m.green) : new THREE.Object3D();
+  if (kind !== "intro") group.add(lead);
   lead.name = "story-marble";
-  if (kind !== "intro") {
-    const edge = chapterSpan(compact);
-    for (const [x, y] of [
-      [-edge, HANDOFF_TOP],
-      ...(kind === "bell" ? [] : [[edge, HANDOFF_BOTTOM]]),
-    ]) {
-      const collar = mesh(
-        new THREE.CylinderGeometry(0.24, 0.2, 0.32, 24, 1, true),
-        m.brass,
-      );
-      collar.position.set(x, y - 0.02, 0);
-    }
-  }
   let pose: (progress: number, wind?: number) => void;
 
   if (kind === "tipping-cup") {
@@ -319,62 +315,54 @@ export function buildMachine(
       latch.rotation.z = Math.min(1, Math.max(0, (p - 0.3) / 0.03)) * 0.6;
       position(lead, state.ball);
     };
-  } else if (kind === "bell") {
-    const layout = bellLayout(compact);
+  } else if (kind === "confetti") {
+    const layout = finaleLayout(compact);
     rail(layout.rail);
-    cup(0, -0.61, group, m.green);
-    const striker = new THREE.Group();
-    striker.position.set(0.15, 1.3, 0);
-    group.add(striker);
-    box(0.055, 0.98, 0.06, 0, -0.49, m.wood, striker);
-    const head = cylinder(0.15, 0.3, 0, -0.96, m.brass, striker);
-    head.rotation.z = Math.PI / 2;
-    axle(layout.strikerPivot);
-    const bell = new THREE.Group();
-    bell.position.set(1.16, 1.3, 0);
-    group.add(bell);
-    const bellPoints = [
-      new THREE.Vector2(0.08, 0),
-      new THREE.Vector2(0.17, -0.1),
-      new THREE.Vector2(0.22, -0.4),
-      new THREE.Vector2(0.4, -0.68),
-      new THREE.Vector2(0.42, -0.72),
-      new THREE.Vector2(0.35, -0.73),
-      new THREE.Vector2(0.15, -0.39),
-      new THREE.Vector2(0.1, -0.12),
-    ];
-    mesh(new THREE.LatheGeometry(bellPoints, 40), m.brass, bell);
-    support(1.16, 1.55, -0.4);
+    const trigger = new THREE.Group();
+    trigger.position.set(0, -0.4, 0);
+    group.add(trigger);
+    box(1.2, 0.08, 0.4, 0, 0, m.brass, trigger);
+    cup(0, -0.02, trigger, m.green);
+    axle({ x: 0, y: -0.4 });
+    const hopperWidth = compact ? 2.1 : 3.6;
+    box(hopperWidth, 0.55, 0.12, 0, 1.45, m.brass, group, -0.35);
+    for (const x of [-hopperWidth / 2, hopperWidth / 2]) {
+      box(0.07, 0.55, 0.65, x, 1.45, m.brass);
+      support(x, 1.75, -0.38);
+    }
+    const doors = [-1, 1].map((side) => {
+      const door = new THREE.Group();
+      door.position.set((side * hopperWidth) / 2, 1.16, -0.7);
+      group.add(door);
+      box(
+        hopperWidth / 2,
+        0.06,
+        0.65,
+        (-side * hopperWidth) / 4,
+        0,
+        m.ivory,
+        door,
+      );
+      return door;
+    });
+    const weight = cylinder(0.17, 0.33, 0.65, 0.65, m.brass);
+    const cord = box(0.022, 1, 0.022, 0.65, 1.08, m.edge);
     rod(
-      new THREE.Vector3(1.16, 1.55, -0.4),
-      new THREE.Vector3(1.16, 1.55, 0),
-      0.035,
-      m.brass,
+      new THREE.Vector3(0.65, 1.7, 0),
+      new THREE.Vector3(hopperWidth / 2, 1.7, 0),
+      0.025,
+      m.steel,
     );
-    rod(
-      new THREE.Vector3(1.16, 1.55, 0),
-      new THREE.Vector3(1.16, 1.3, 0),
-      0.03,
-      m.brass,
-    );
-    const latch = new THREE.Group();
-    group.add(latch);
-    latch.position.set(0, 0.06, 0);
-    box(0.08, 0.38, 0.25, 0, 0.19, accent, latch);
-    rod(
-      new THREE.Vector3(0, 0.1, 0),
-      new THREE.Vector3(-0.56, 0.43, 0),
-      0.035,
-      m.brass,
-      latch,
-    );
-    axle({ x: 0, y: 0.06 });
+    box(hopperWidth + 0.4, 0.08, 0.85, 0, -1.75, m.ivory);
     pose = (p) => {
-      const state = sampleBell(p, compact);
+      const state = sampleFinale(p, compact);
       position(lead, state.ball);
-      striker.rotation.z = state.angle;
-      bell.rotation.z = state.bellAngle;
-      latch.rotation.z = -state.strike * 0.7;
+      trigger.rotation.z = state.angle;
+      weight.position.y = 0.65 - state.lift * 0.75;
+      cord.scale.y = 1.7 - weight.position.y;
+      cord.position.y = (1.7 + weight.position.y) / 2;
+      doors[0].rotation.z = -state.doors * 1.25;
+      doors[1].rotation.z = state.doors * 1.25;
     };
   } else {
     rail(introLayout.rail);

@@ -51,14 +51,14 @@ export const chapterActions = [
   "tipping-cup",
   "counterweight-gate",
   "balance-transfer",
-  "bell",
+  "confetti",
 ] as const;
 export type ChapterAction = (typeof chapterActions)[number];
 export type MachineKind = "intro" | ChapterAction;
 
 export const chapterSpan = (compact: boolean) => (compact ? 1.55 : 2.65);
 export const chapterDirection = (kind: MachineKind) =>
-  kind === "counterweight-gate" || kind === "bell" ? -1 : 1;
+  kind === "counterweight-gate" || kind === "confetti" ? -1 : 1;
 export const HANDOFF_TOP = 1.95;
 export const HANDOFF_BOTTOM = -1.65;
 
@@ -183,35 +183,28 @@ export function sampleBalance(progress: number, compact: boolean) {
   return { ball, angle };
 }
 
-export function bellLayout(compact: boolean) {
+export function finaleLayout(compact: boolean) {
   const span = chapterSpan(compact);
   return {
     span,
     rail: [
       { x: -span, y: HANDOFF_TOP },
-      { x: -span, y: 1.15 },
-      { x: -0.5, y: 0.5 },
-      { x: 0, y: 0.25 },
+      { x: -span, y: 0.8 },
+      { x: -0.65, y: 0.3 },
+      { x: 0, y: -0.05 },
     ],
-    strikerPivot: { x: 0.15, y: 1.3 },
   };
 }
-export function sampleBell(progress: number, compact: boolean) {
+export function sampleFinale(progress: number, compact: boolean) {
   const p = clamp(progress);
-  const railBall = travel(
-    bellLayout(compact).rail,
-    phase(p, 0.04, 0.43) ** 1.4,
-  );
-  const ball = { ...railBall, y: railBall.y - 0.6 * phase(p, 0.43, 0.51) ** 2 };
-  const strike = ease(phase(p, 0.43, 0.62));
-  const settle = phase(p, 0.62, 1);
-  const angle =
-    p < 0.62
-      ? mix(-0.7, 0.75, strike)
-      : 0.75 * Math.exp(-6 * settle) * Math.cos(settle * Math.PI * 4);
-  const bellAngle =
-    p <= 0.62 ? 0 : 0.13 * Math.sin(settle * Math.PI * 7) * (1 - settle) ** 2;
-  return { ball, angle, bellAngle, strike };
+  const incoming = travel(finaleLayout(compact).rail, phase(p, 0.04, 0.5));
+  const lift = ease(phase(p, 0.5, 0.75));
+  return {
+    ball: { ...incoming, y: incoming.y - lift * 0.18 },
+    angle: -0.3 * lift,
+    lift,
+    doors: ease(phase(p, 0.75, 1)),
+  };
 }
 
 export const introLayout = {
@@ -370,7 +363,7 @@ export function sampleChapterBall(
     "tipping-cup": sampleCup,
     "counterweight-gate": sampleGate,
     "balance-transfer": sampleBalance,
-    bell: sampleBell,
+    confetti: sampleFinale,
   };
   const ball = samplers[kind](progress, compact).ball;
   const direction = chapterDirection(kind);
