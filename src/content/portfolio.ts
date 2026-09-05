@@ -2,6 +2,8 @@ import { z } from "zod";
 
 const imageSchema = z.object({
   src: z.string().min(1),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
   alt: z.string().min(1),
   caption: z.string().min(1),
 });
@@ -53,6 +55,8 @@ export const projects = z.array(projectSchema).parse([
       "I built the UI and APIs for AG1's subscription service, using Shopify selling plans to power Shop AG1 and the cart. I also helped lead frontend decoupling.",
     coverImage: {
       src: "/images/ag1/homepage-hero-clean-2026.jpg",
+      width: 2240,
+      height: 1263,
       alt: "AG1 homepage hero introducing AG1 Pro beside a green travel pack and shaker",
       caption:
         "Public AG1 homepage, captured August 2026. The live site has continued to change since my 2023–2025 work.",
@@ -95,6 +99,8 @@ export const projects = z.array(projectSchema).parse([
     evidenceImages: [
       {
         src: "/images/ag1/storefront-2026.png",
+        width: 1713,
+        height: 954,
         alt: "Current AG1 Pro product page with monthly and three-month delivery options",
         caption:
           "Public AG1 Pro purchase flow, captured August 2026. The live storefront has changed since my 2023–2025 work.",
@@ -119,10 +125,12 @@ export const projects = z.array(projectSchema).parse([
     summary:
       "I helped build Battlefield 2042's web-based Portal Builder, turning dense game configuration into tools players could use.",
     coverImage: {
-      src: "/images/battlefield/homepage-hero-2026.jpg",
-      alt: "Battlefield 2042 homepage hero showing a squad moving through an urban battle",
+      src: "/images/battlefield/key-art-2021.jpg",
+      width: 4000,
+      height: 2250,
+      alt: "Official Battlefield 2042 key art with a soldier against teal and orange battlefield imagery",
       caption:
-        "Public Battlefield 2042 homepage, captured August 2026. My work focused on the web-based Portal Builder.",
+        "Official Electronic Arts Battlefield 2042 key art, published June 2021. My work focused on the web-based Portal Builder.",
     },
     highlights: [
       { label: "Focus", value: "Battlefield Portal Builder" },
@@ -157,12 +165,16 @@ export const projects = z.array(projectSchema).parse([
     evidenceImages: [
       {
         src: "/images/battlefield/weapons-selector.jpg",
+        width: 975,
+        height: 548,
         alt: "Official Battlefield Portal Builder interface for choosing available weapons",
         caption:
           "Weapon selection in the public EA Portal briefing. Official Electronic Arts image, published 2021.",
       },
       {
         src: "/images/battlefield/equipment-selector.jpg",
+        width: 975,
+        height: 548,
         alt: "Official Battlefield Portal Builder interface for choosing available equipment",
         caption:
           "Equipment selection in the public EA Portal briefing. Official Electronic Arts image, published 2021.",
@@ -187,10 +199,12 @@ export const projects = z.array(projectSchema).parse([
     summary:
       "I led cross-platform work on Trade Calendar, payments, and member tools across BeautyNexos's Flutter app and Strapi platform.",
     coverImage: {
-      src: "/images/beautynexos/homepage-hero-2026.jpg",
-      alt: "BeautyNexos homepage with two editorial stories about beauty innovation",
+      src: "/images/beautynexos/trends-2026-09-04.png",
+      width: 3456,
+      height: 1776,
+      alt: "BeautyNexos Trends page featuring lip care and sensory beauty stories",
       caption:
-        "Public BeautyNexos homepage, captured August 2026. My work also includes member and platform areas beyond this public view.",
+        "Public BeautyNexos Trends page, captured September 4, 2026. My work also includes member and platform areas beyond this public view.",
     },
     highlights: [
       { label: "Focus", value: "Cross-platform member platform" },
@@ -221,6 +235,8 @@ export const projects = z.array(projectSchema).parse([
     evidenceImages: [
       {
         src: "/images/beautynexos/trade-calendar-2026.png",
+        width: 1728,
+        height: 906,
         alt: "BeautyNexos Trade Calendar with event filters and a featured event",
         caption:
           "Public BeautyNexos Trade Calendar, captured August 2026. Private member-management screens are intentionally excluded.",

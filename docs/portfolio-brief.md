@@ -13,7 +13,7 @@ Marc combines design judgment with production engineering. Commerce and subscrip
 ## Page narrative
 
 1. Identity, positioning, availability, and primary actions
-2. Spatial Index for three Anchor Case Studies
+2. World Overview for three Anchor Case Studies
 3. AG1 Chapter
 4. Battlefield Chapter
 5. BeautyNexos Chapter
@@ -58,33 +58,35 @@ Each chapter states context and dates, role and team boundary, product problem, 
 
 ## Visual system
 
-- Light editorial foundation in warm off-white and ink
-- Zilla Slab display typography with Geist body typography
-- Rigid Spatial Index influenced by the compositional clarity of Jlern without copying its layout or language
-- Cursor-proximity Focus Interaction on pointer devices; scroll-position and tap behavior on touch devices
-- Project Accents: AG1 green, Battlefield orange-red, BeautyNexos violet-rose
-- One persistent abstract field of planes, lines, and nodes
-- Precise quick motion for focus and navigation; slower cinematic motion between chapters
-- Stable Reading Zones without continuous movement
+- Three Worlds: near-black opening, large Geist typography, distinct project compositions
+- AG1 uses deep greens and a product-journey spread beside current purchase-flow evidence
+- Battlefield uses orange accents and paired official weapon/equipment screenshots; images stack on phones
+- BeautyNexos uses lilac editorial layouts around its public Trends page and Trade Calendar
+- Project panels expand on hover and keyboard focus; touch uses direct tap targets
+- World transitions preserve orientation and return focus to the selected panel
+- Reading zones stay still; notes expand on demand using native disclosures
+- Career and biography lead into the Next World contact finale with three responsive colored frames
+- No intro gate, WebGL machine, custom cursor, forced scrolling, or standalone equipment demos
 
 ## Technical shape
 
-- Current stable Next.js App Router, React, and TypeScript
-- Direct Three.js scene mounted once behind server-rendered HTML
-- GSAP and ScrollTrigger for scene states and restrained DOM transitions
-- CSS custom-property tokens and CSS Modules
-- Typed local portfolio content
-- Native browser scrolling and anchor navigation
+- Next.js App Router, React, and TypeScript
+- Server-rendered narrative and evidence, with client code limited to navigation motion, active-world tracking, motion preference, and address copying
+- CSS tokens in globals.css and CSS Modules; browser animation API for brief project transitions
+- Typed local project content and presentation mappings
+- Native document scrolling and anchors, with keyboard focus and browser history support
+- The main experience lives at `/`; `/worlds` redirects there and keeps fragment links
 - Normal Vercel Next.js deployment; no forced static export
 
 ## Accessibility and performance
 
 - WCAG 2.2 AA target
-- Semantic HTML, keyboard navigation, visible focus, and contrast checks
-- Static fallback instead of WebGL for reduced-motion users
-- Visible Pause Motion control
-- One renderer, fewer than 100 draw calls, DPR capped at 1.5
-- Three.js loads after readable HTML and stops rendering while idle or hidden
+- Semantic headings, descriptive image captions, keyboard navigation, visible focus, and contrast checks
+- Complete readable content and native disclosures without JavaScript
+- Reduced motion uses direct navigation and static compositions
+- Visible Pause Motion control with a persistent browser preference
+- No continuous rendering loop or WebGL dependency
+- Optimized responsive images; Geist is the only loaded font family
 - Core Web Vitals in their good ranges and Lighthouse mobile performance target of 90 or better
 
 ## Repository and release
@@ -96,3 +98,7 @@ Each chapter states context and dates, role and team boundary, product problem, 
 - No source license in version one
 - Intended domain: `marcmathieu.dev`; register separately and recheck availability at checkout
 - Use Vercel Hobby during development; verify eligibility or use Pro before public launch
+
+### Battlefield preview art source
+
+The project preview uses EA’s June 2021 Battlefield 2042 key art from [the official announcement](https://news.ea.com/press-releases/press-releases-details/2021/Battlefield-2042-Marks-the-Return-of-All-Out-Warfare-in-New-Unmatched-Epic-Scale-Experience/). It provides product context; the chapter retains weapon and equipment selector evidence for Marc’s contribution.

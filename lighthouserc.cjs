@@ -1,9 +1,9 @@
 module.exports = {
   ci: {
     collect: {
-      startServerCommand: "pnpm start",
+      startServerCommand: "pnpm start --port 4173",
       startServerReadyPattern: "Ready",
-      url: ["http://127.0.0.1:3000/"],
+      url: ["http://127.0.0.1:4173/"],
       numberOfRuns: 3,
       settings: { formFactor: "mobile" },
     },

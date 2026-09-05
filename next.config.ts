@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
     inlineCss: true,
   },
   poweredByHeader: false,
+  redirects: async () => [
+    { source: "/worlds", destination: "/", permanent: true },
+  ],
 };
 
 export default nextConfig;
