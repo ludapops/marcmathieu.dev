@@ -15,10 +15,10 @@ Read `CONTEXT.md` before changing portfolio language or project attribution. Rea
 ## Boundaries
 
 - Keep portfolio text, metadata, and evidence server-rendered. Add a client boundary only for browser interaction.
-- Keep the Three.js renderer in `src/components/scene`; one mounted scene owns its lifecycle and resources.
+- Keep the Three Worlds presentation in `src/components/worlds`; browser interaction belongs in its client boundary.
 - Extend tokens in `src/app/globals.css` before adding one-off visual values.
 - Keep public project claims inside the evidence boundaries in the brief. Caption current product imagery with its capture date.
-- Treat reduced motion, keyboard operation, visible focus, and the static WebGL fallback as release requirements.
+- Treat reduced motion, keyboard operation, visible focus, and a complete static reduced-motion experience as release requirements.
 
 ## Completion
 

@@ -1,3 +1,5 @@
+Status: superseded by [ADR 0002](0002-three-worlds-with-native-browser-motion.md).
+
 # Use direct Three.js for the procedural scene
 
 The portfolio uses one asset-free Rube Goldberg machine with an intro module and three connected chapter modules. Three.js owns geometry and rendering. GSAP authors the intro's spring, marble, domino, seesaw, ball, and Enter-key motion as one deterministic timeline, and it also controls the camera, interface reveal, and reversible chapter scroll states.

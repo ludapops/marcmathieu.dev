@@ -27,8 +27,8 @@ describe("portfolio content", () => {
   it("keeps work-specific evidence separate from the public-site covers", () => {
     expect(projects.map((project) => project.coverImage.src)).toEqual([
       "/images/ag1/homepage-hero-clean-2026.jpg",
-      "/images/battlefield/homepage-hero-2026.jpg",
-      "/images/beautynexos/homepage-hero-2026.jpg",
+      "/images/battlefield/key-art-2021.jpg",
+      "/images/beautynexos/trends-2026-09-04.png",
     ]);
     expect(
       projects

@@ -1,11 +1,13 @@
 module.exports = {
   ci: {
     collect: {
-      startServerCommand: "pnpm start",
+      startServerCommand: "pnpm start --port 4173",
       startServerReadyPattern: "Ready",
-      url: ["http://127.0.0.1:3000/"],
+      url: ["http://127.0.0.1:4173/"],
       numberOfRuns: 3,
-      settings: { formFactor: "mobile" },
+      // Measure the throttled browser load instead of reconstructing paint timing
+      // from an unthrottled localhost trace. Keep the mobile budgets unchanged.
+      settings: { formFactor: "mobile", throttlingMethod: "devtools" },
     },
     assert: {
       assertions: {
