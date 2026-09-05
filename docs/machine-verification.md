@@ -24,3 +24,11 @@ The intro still runs for eight seconds. Its launch occurs at 5.5 seconds and imp
 Use `pnpm dev --port 3001` for the preview. Set `PORTFOLIO_PORT=3001` when running Playwright. Reviewed baselines are in `tests/portfolio.spec.ts-snapshots`.
 
 The performance run used the existing Lighthouse assertions with a separate production server on port 3010. Reports are in the ignored `lighthouse-results` directory. Phone and tablet verification uses browser emulation, not physical devices.
+
+## Counterweight and mobile panel corrections
+
+Raised and shortened the Battlefield counterweight so its full travel clears the shared marble. A sampled clearance regression checks 2,001 positions in each of the compact and wide mechanisms, including a 0.02-unit margin beyond the marble radius.
+
+Case-study grids now allow their columns and children to shrink to the reading panel. Compact headings use the panel width rather than the viewport width. Browser regressions check headings, paragraphs, figures, images, captions, disclosures, and links at 320, 390, 599, and 834 pixels, with case studies closed and expanded. Reviewed the Battlefield image/caption and BeautyNexos heading in a 390-pixel browser.
+
+`pnpm check` passes with 37 unit tests. All 131 applicable browser smoke checks pass (49 intentional device-specific skips), including accessibility and console-error checks. All 18 updated screenshot comparisons pass; intro baselines remain unchanged.

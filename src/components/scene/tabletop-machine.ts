@@ -264,7 +264,14 @@ export function buildMachine(
     box(1.1, 0.09, 0.38, 0, 0, accent, lever);
     axle(layout.pivot);
     const gate = box(0.12, 0.62, 0.55, 0.2, 0.7, m.brass);
-    const counterweight = cylinder(0.17, 0.35, 0.92, 1.1, m.edge);
+    const weight = layout.counterweight;
+    const counterweight = cylinder(
+      weight.radius,
+      weight.height,
+      weight.x,
+      weight.restY,
+      m.edge,
+    );
     for (const x of [0.2, 0.92]) {
       support(x, 1.85, -0.36);
       const wheel = mesh(new THREE.TorusGeometry(0.13, 0.035, 8, 24), m.brass);
@@ -285,10 +292,10 @@ export function buildMachine(
       position(lead, state.ball);
       lever.rotation.z = state.angle;
       gate.position.y = 0.7 + state.lift * 0.58;
-      counterweight.position.y = 1.1 - state.lift * 0.58;
+      counterweight.position.y = weight.restY - state.lift * weight.travel;
       for (const [cord, bottom] of [
         [leftCord, gate.position.y + 0.31],
-        [rightCord, counterweight.position.y + 0.175],
+        [rightCord, counterweight.position.y + weight.height / 2],
       ] as const) {
         const length = 1.88 - bottom;
         cord.scale.y = length;

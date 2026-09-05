@@ -1542,3 +1542,44 @@ test("shows the static finale after losing WebGL", async ({
     "ready",
   );
 });
+
+for (const width of [320, 390, 599, 834]) {
+  test(`reading panels contain their content at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await page.getByRole("button", { name: "Enter portfolio" }).click();
+    await page.evaluate(() => document.fonts.ready);
+    for (const expanded of [false, true]) {
+      await page.locator("main article details").evaluateAll((nodes, open) => {
+        for (const node of nodes)
+          if (node instanceof HTMLDetailsElement) node.open = open;
+      }, expanded);
+      const overflow = await page
+        .locator("main article")
+        .evaluateAll((articles) =>
+          articles.flatMap((article) => {
+            const panel = article.getBoundingClientRect();
+            return Array.from(
+              article.querySelectorAll(
+                "h2, h3, p, figure, img, figcaption, summary, a",
+              ),
+            ).flatMap((element) => {
+              if (!element.getClientRects().length) return [];
+              const rect = element.getBoundingClientRect();
+              return rect.left < panel.left - 1 ||
+                rect.right > panel.right + 1 ||
+                element.scrollWidth > element.clientWidth + 1
+                ? [
+                    `${article.id}: ${element.tagName} ${element.textContent?.slice(0, 40)}`,
+                  ]
+                : [];
+            });
+          }),
+        );
+      expect(overflow).toEqual([]);
+    }
+  });
+}

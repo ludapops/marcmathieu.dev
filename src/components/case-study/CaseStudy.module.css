@@ -5,6 +5,8 @@
   padding: clamp(5rem, 9vw, 9rem) var(--page-pad) var(--page-pad);
   color: var(--chapter-ink);
   background: var(--chapter-paper);
+  container-type: inline-size;
+  overflow-wrap: anywhere;
   position: relative;
   z-index: 2;
   scroll-margin-top: 5rem;
@@ -414,7 +416,7 @@
   .evidenceIntro,
   .outcome,
   .projectLinks {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .chapterMeta,
@@ -433,11 +435,11 @@
 
   .header h2 {
     margin-top: 2rem;
-    font-size: clamp(4rem, 23vw, 7rem);
+    font-size: clamp(2rem, 19cqi, 7rem);
   }
 
   .chapter[id="beautynexos"] .header h2 {
-    font-size: clamp(3.5rem, 17.5vw, 7rem);
+    font-size: clamp(1.8rem, 16cqi, 7rem);
   }
 
   .summary {
@@ -449,7 +451,7 @@
   }
 
   .highlights {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .highlights div {
@@ -495,7 +497,7 @@
   }
 
   .mediaGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .mediaGrid figure:only-child {
@@ -513,4 +515,8 @@
 .disclosure[data-motion-paused="true"]::details-content,
 .disclosure[data-motion-paused="true"] .disclosureIcon span {
   transition: none;
+}
+
+.chapter :where(header, section, figure, p, h2, h3, ol, div) {
+  min-width: 0;
 }

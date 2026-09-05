@@ -46,6 +46,19 @@ for (const compact of [false, true]) {
         );
         expect(sampleGate(1, compact).ball.y).toBe(HANDOFF_BOTTOM);
       });
+      it("keeps the counterweight clear of the marble throughout its travel", () => {
+        const weight = gateLayout(compact).counterweight;
+        for (let step = 0; step <= 2000; step++) {
+          const { ball, lift } = sampleGate(step / 2000, compact);
+          const dx = Math.max(0, Math.abs(ball.x - weight.x) - weight.radius);
+          const dy = Math.max(
+            0,
+            Math.abs(ball.y - (weight.restY - lift * weight.travel)) -
+              weight.height / 2,
+          );
+          expect(Math.hypot(dx, dy)).toBeGreaterThan(MARBLE_RADIUS + 0.02);
+        }
+      });
       it("carries the same marble across the tipping balance", () => {
         const layout = balanceLayout(compact);
         expect(sampleBalance(0.32, compact).angle).toBeCloseTo(0);

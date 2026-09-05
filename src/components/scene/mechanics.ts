@@ -110,6 +110,13 @@ export function gateLayout(compact: boolean) {
     span,
     pivot,
     localBall,
+    counterweight: {
+      x: 0.92,
+      restY: 1.4,
+      radius: 0.17,
+      height: 0.25,
+      travel: 0.58,
+    },
     incoming: [{ x: -span, y: HANDOFF_TOP }, { x: -span, y: 1.3 }, landing],
     outgoing: [
       release,
