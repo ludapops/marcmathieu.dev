@@ -98,7 +98,8 @@ export default function PortfolioPage() {
                   <div className={styles.panelMedia}>
                     <Image
                       src={image.src}
-                      preload={project.id === "ag1"}
+                      loading={project.id === "ag1" ? "eager" : "lazy"}
+                      fetchPriority={project.id === "ag1" ? "high" : "auto"}
                       alt={image.alt}
                       fill
                       sizes="(max-width: 700px) 94vw, 45vw"

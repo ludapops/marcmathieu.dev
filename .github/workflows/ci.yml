@@ -22,3 +22,10 @@ jobs:
       - run: pnpm check
       - run: pnpm test:e2e --project=chromium
       - run: pnpm lhci
+      - name: Save Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: lighthouse-results/
+          if-no-files-found: ignore
