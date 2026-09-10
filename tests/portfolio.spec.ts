@@ -74,7 +74,7 @@ for (const id of ids) {
     await note.locator("summary").click();
     await expect(note).toHaveAttribute("open", "");
     await section
-      .getByRole("link", { name: "↖ All projects", exact: true })
+      .getByRole("link", { name: "All projects", exact: true })
       .click();
     await expect(page.locator("[data-transition-overlay]")).toHaveCount(0);
     await expect(panel).toBeFocused();

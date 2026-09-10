@@ -4,6 +4,7 @@ import {
   ContactAction,
 } from "@/components/worlds/WorldsInteraction";
 import { ProjectChapter } from "@/components/worlds/ProjectChapter";
+import { ArrowIcon } from "@/components/worlds/ArrowIcon";
 import { projects, career, contactLinks } from "@/content/portfolio";
 import { worldPresentation } from "@/content/worlds";
 import styles from "@/components/worlds/Worlds.module.css";
@@ -29,10 +30,10 @@ export default function PortfolioPage() {
           <a href="#work">Work</a>
           <a href="#about">About</a>
           <a href="/Marc-Mathieu-Resume.pdf" className={styles.resumeLink}>
-            Résumé ↗
+            Résumé <ArrowIcon className={styles.arrowIcon} />
           </a>
           <a href="#contact">
-            Let’s talk <span aria-hidden="true">↗</span>
+            Let’s talk <ArrowIcon className={styles.arrowIcon} />
           </a>
         </nav>
       </header>
@@ -65,7 +66,8 @@ export default function PortfolioPage() {
               and work.
             </p>
             <a href="#work" className={styles.scrollHint}>
-              EXPLORE THE WORK <span aria-hidden="true">↓</span>
+              EXPLORE THE WORK{" "}
+              <ArrowIcon direction="down" className={styles.arrowIcon} />
             </a>
           </div>
           <div id="work" className={styles.panels}>
@@ -90,7 +92,7 @@ export default function PortfolioPage() {
                       {project.index} / {art.category}
                     </span>
                     <span className={styles.roundArrow} aria-hidden="true">
-                      ↗
+                      <ArrowIcon className={styles.arrowIcon} />
                     </span>
                   </div>
                   <h2>{project.shortName}</h2>
@@ -114,7 +116,8 @@ export default function PortfolioPage() {
                       }
                     </span>
                     <span>
-                      VIEW PROJECT <span aria-hidden="true">↗</span>
+                      VIEW PROJECT{" "}
+                      <ArrowIcon className={styles.arrowIcon} />
                     </span>
                   </div>
                 </a>
@@ -181,7 +184,8 @@ export default function PortfolioPage() {
             production.
           </p>
           <a href="/Marc-Mathieu-Resume.pdf">
-            The longer story — résumé <span aria-hidden="true">↗</span>
+            The longer story — résumé{" "}
+            <ArrowIcon className={styles.arrowIcon} />
           </a>
         </section>
         <section
@@ -217,7 +221,8 @@ export default function PortfolioPage() {
                 .filter((link) => link.label !== "Email")
                 .map((link) => (
                   <a key={link.label} href={link.href}>
-                    {link.label} <span aria-hidden="true">↗</span>
+                    {link.label}{" "}
+                    <ArrowIcon className={styles.arrowIcon} />
                   </a>
                 ))}
             </div>
