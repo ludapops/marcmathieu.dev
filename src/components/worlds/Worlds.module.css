@@ -179,9 +179,19 @@
   height: 29px;
   display: grid;
   place-items: center;
-  font-size: 1rem;
   flex: none;
   transition: transform 0.5s var(--world-ease);
+}
+.arrowIcon {
+  width: 0.9em;
+  height: 0.9em;
+  flex: none;
+  vertical-align: -0.1em;
+}
+.roundArrow .arrowIcon {
+  width: 14px;
+  height: 14px;
+  vertical-align: 0;
 }
 .panel h2 {
   font-size: clamp(1.9rem, 3vw, 3.5rem);

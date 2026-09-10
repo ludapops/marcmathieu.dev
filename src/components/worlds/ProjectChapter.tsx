@@ -1,6 +1,7 @@
 import Image from "next/image";
 import type { Project } from "@/content/portfolio";
 import { worldPresentation } from "@/content/worlds";
+import { ArrowIcon } from "./ArrowIcon";
 import styles from "./Worlds.module.css";
 
 function Evidence({
@@ -38,7 +39,8 @@ export function ProjectChapter({ project }: { project: Project }) {
     >
       <div className={styles.chapterTop}>
         <a href="#overview" data-return-world={project.id}>
-          ↖ All projects
+          <ArrowIcon direction="up-left" className={styles.arrowIcon} /> All
+          projects
         </a>
         <span>
           {project.index} / {project.period} / CODE PARTICLE
@@ -207,7 +209,8 @@ export function ProjectChapter({ project }: { project: Project }) {
               target="_blank"
               rel="noreferrer"
             >
-              {link.label} <span aria-hidden="true">↗</span>
+              {link.label}{" "}
+              <ArrowIcon className={styles.arrowIcon} />
               <span className={styles.srOnly}> (opens in a new tab)</span>
             </a>
           ))}
@@ -218,7 +221,8 @@ export function ProjectChapter({ project }: { project: Project }) {
         href="#overview"
         data-return-world={project.id}
       >
-        Back to all projects <span aria-hidden="true">↖</span>
+        Back to all projects{" "}
+        <ArrowIcon direction="up-left" className={styles.arrowIcon} />
       </a>
     </article>
   );

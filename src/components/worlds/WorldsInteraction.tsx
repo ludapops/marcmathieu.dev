@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowIcon } from "./ArrowIcon";
 import styles from "./Worlds.module.css";
 
 type World = "overview" | "ag1" | "battlefield" | "beautynexos" | "next";
@@ -9,7 +10,7 @@ const worldLinks: { id: World; label: string }[] = [
   { id: "ag1", label: "AG1" },
   { id: "battlefield", label: "Battlefield" },
   { id: "beautynexos", label: "BeautyNexos" },
-  { id: "next", label: "Next ↗" },
+  { id: "next", label: "Next" },
 ];
 const motionKey = "marc-motion-paused";
 
@@ -247,6 +248,12 @@ export function WorldsInteraction({ children }: { children: ReactNode }) {
             >
               <i data-color={world.id} aria-hidden="true" />
               {world.label}
+              {world.id === "next" ? (
+                <>
+                  {" "}
+                  <ArrowIcon className={styles.arrowIcon} />
+                </>
+              ) : null}
             </a>
           ))}
         </nav>
@@ -283,7 +290,7 @@ export function ContactAction() {
   return (
     <div className={styles.contactActions}>
       <a href="mailto:avianmathieu@gmail.com">
-        Email Marc <span aria-hidden="true">↗</span>
+        Email Marc <ArrowIcon className={styles.arrowIcon} />
       </a>
       <div>
         <span>avianmathieu@gmail.com</span>
